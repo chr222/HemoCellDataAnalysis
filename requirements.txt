@@ -1,0 +1,7 @@
+h5py~=3.2.1
+numpy~=1.19.2
+setuptools~=56.0.0
+matplotlib
+scipy
+pandas
+psutil
