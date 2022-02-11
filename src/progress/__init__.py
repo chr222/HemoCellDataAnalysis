@@ -13,6 +13,13 @@ class ProgressFunction:
         print(f"\r{self.description} | Completed 0/{self.total_iterations} iterations", end="")
 
     def run(self, function: any, *args):
+        """
+        Run iteration
+        :param function: Function to run
+        :param args: Arguments of function
+        :return: Result of the function
+        """
+
         start_time = time()
         result = function(*args)
         self.iterations_times.append(time() - start_time)
@@ -23,6 +30,10 @@ class ProgressFunction:
 
     @property
     def time_remaining(self) -> float:
+        """
+        Estimated time need to run the remaining iterations
+        """
+
         return mean(self.iterations_times[-100:]) * (self.total_iterations - len(self.iterations_times))
 
     def print_progress(self):
@@ -31,10 +42,18 @@ class ProgressFunction:
 
 @dataclass
 class StatusHandler:
+    """
+    Writes the status of the program by overwriting lines
+    """
+
     prefix: str = ''
     last_line: str = ''
 
     def print(self, message: str):
+        """
+        Overwrite last line
+        """
+
         line = self.prefix + message
         print(f'\r{line: <{len(self.last_line)}}', end="")
 
@@ -44,6 +63,10 @@ class StatusHandler:
         self.last_line = line
 
     def println(self, message: str):
+        """
+        Last message of batch and continue on new line
+        """
+
         print(f'\r{message: <{len(self.last_line)}}')
         self.prefix = ''
         self.last_line = ''

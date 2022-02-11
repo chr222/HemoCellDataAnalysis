@@ -1,0 +1,34 @@
+Index: IO/hemoCellParticleFieldOutputFunctions.cpp
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/IO/hemoCellParticleFieldOutputFunctions.cpp b/IO/hemoCellParticleFieldOutputFunctions.cpp
+--- a/IO/hemoCellParticleFieldOutputFunctions.cpp	(revision 8ce16202dd4d83d38b2b0a01f7a322e51c1afec4)
++++ b/IO/hemoCellParticleFieldOutputFunctions.cpp	(revision 4f8a613e10fe81e322474a84069e0f2155588c5e)
+@@ -416,7 +416,7 @@
+     for (pluint i = 0; i < particles_per_cell.at(cellid).size(); i++) {
+       sparticle = &particles[particles_per_cell.at(cellid)[i]];
+       vector<T> tf;
+-      tf.push_back((sparticle->sv.cellId));
++      tf.push_back(sparticle->sv.cellId);
+       output.push_back(tf);
+     }
+   }
+Index: scripts/CellHDF5toXMF.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/scripts/CellHDF5toXMF.py b/scripts/CellHDF5toXMF.py
+--- a/scripts/CellHDF5toXMF.py	(revision 8ce16202dd4d83d38b2b0a01f7a322e51c1afec4)
++++ b/scripts/CellHDF5toXMF.py	(revision 4f8a613e10fe81e322474a84069e0f2155588c5e)
+@@ -141,6 +141,8 @@
+           attributeType, rankString = "Scalar", ""
+         elif dimObjShape==2 and obj_shape[-1] == 3:
+           attributeType, rankString = "Vector", "3"
++        elif dimObjShape == 2 and obj_shape[-1] == 1:
++            attributeType, rankString = "Scalar", "1"
+         else:
+           attributeType, rankString = "Matrix", " ".join(obj_shape[3:])
+         return attributeType, rankString 

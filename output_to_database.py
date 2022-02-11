@@ -8,20 +8,30 @@ import sys
 from time import time
 
 
-def main(simulation_name: str, data_directory: str):
+def import_simulation(simulation_name: str, data_directory: str):
+    """
+    Import the simulation into the database
+    :param simulation_name: The name you want to give the simulation in the database
+    :param data_directory: The directory with data that needs to be imported
+    """
+
     try:
+        # Setup connection with the database and create it if it does not exist yet
         connection = Connection(database_name=params.DATABASE_NAME)
 
+        # Parse the simulation
         start_time = time()
         parse_simulation(
             connection,
             simulation_name,
             data_directory
         )
-        sys.stdout.write(f"\rInserted simulation \"{simulation_name}\" in {time_remaining_to_string(time() - start_time)} total\n\n")
+        sys.stdout.write(f"\rImported simulation \"{simulation_name}\" in {time_remaining_to_string(time() - start_time)} total\n\n")
         sys.stdout.flush()
+
+    # Handle pausing the import process
     except KeyboardInterrupt:
-        print('\n\nEnding insertion process, you can continue this later.\n\n')
+        print('\n\nEnding import process, you can continue this later.\n\n')
 
 
 def setup_argument_parser() -> ArgumentParser:
@@ -37,4 +47,4 @@ if __name__ == '__main__':
     arg_parser = setup_argument_parser()
     args = arg_parser.parse_args()
 
-    main(args.name, args.directory)
+    import_simulation(args.name, args.directory)

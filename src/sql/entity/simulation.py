@@ -1,55 +1,54 @@
-from src.sql.entity.boundary import Boundary, load_boundary
+from src.sql.entity import Entity, exclude, unique
+from src.sql.entity.boundary import Boundary, load_boundary, create_boundary
 from src.sql.entity.bulk_collector import BulkCollector
 from src.sql.entity.config import create_config, load_config, Config
 from src.sql.entity.csv_cell import create_csv_cells
 from src.sql.entity.csv_iteration import CSVIteration, load_csv_iterations
 from src.sql.entity.hdf5_cell import create_hdf5_cells
-from src.sql.entity.hdf5_fluid import create_fluid, create_boundary
+from src.sql.entity.hdf5_fluid import create_fluid
 from src.sql.entity.hdf5_iteration import Hdf5Iteration, load_hdf5_iterations
 from src.progress import ProgressFunction, StatusHandler
 
 from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
-from typing import Dict, Union
+from typing import Dict, Union, Annotated, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.sql.connection import Connection
 
 
 @dataclass
-class Simulation:
-    simulation_name: str
-    id: int = None
-    config: Config = None
-    hdf5_iterations: Dict[int, Hdf5Iteration] = None
-    csv_iterations: Dict[int, CSVIteration] = None
-    boundary: Boundary = None
+class Simulation(Entity):
+    simulation_name: Annotated[str, unique]
+    created_at: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    config: Annotated[Config, exclude] = None
+    hdf5_iterations: Annotated[Dict[int, Hdf5Iteration], exclude] = None
+    csv_iterations: Annotated[Dict[int, CSVIteration], exclude] = None
+    boundary: Annotated[Boundary, exclude] = None
+    all: Annotated[BulkCollector, exclude] = None
 
-    all: BulkCollector = None
+    def exists(self, connection: "Connection") -> (bool, Union[int, None]):
+        return connection.exists(
+            "SELECT id FROM simulation WHERE simulation_name=?;",
+            self.simulation_name
+        )
 
-    def exists(self, connection) -> (bool, Union[int, None]):
-        return connection.exists(f"SELECT id FROM simulation WHERE simulation_name='{self.simulation_name}';")
+    @classmethod
+    def load(cls, connection: "Connection", simulation_name: str) -> "Simulation":
+        params = connection.select_one(
+            "SELECT simulation_name, id FROM simulation WHERE simulation_name=?;",
+            simulation_name
+        )
 
-    def insert(self, connection):
-        (exists, _id) = connection.exists(f"SELECT id FROM simulation WHERE simulation_name='{self.simulation_name}';")
-
-        if exists:
-            self.id = _id
-        else:
-            self.id = connection.insert(f"""INSERT INTO simulation(simulation_name, created_at) VALUES (
-                '{self.simulation_name}',
-                '{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
-            );""")
-
-    @staticmethod
-    def get_schema() -> str:
-        return """CREATE TABLE simulation (
-                    id integer PRIMARY KEY,
-                    simulation_name text NOT NULL UNIQUE,
-                    created_at text NOT NULL                   
-                  );"""
+        return Simulation.from_dict(
+            id=params[1],
+            simulation_name=params[0]
+        )
 
 
-def parse_simulation(connection, simulation_name: str, data_directory: str) -> Simulation:
-    simulation = Simulation(simulation_name)
+def parse_simulation(connection: "Connection", simulation_name: str, data_directory: str) -> Simulation:
+    simulation = Simulation(simulation_name=simulation_name)
 
     (exists, simulation_id) = simulation.exists(connection)
 
@@ -77,24 +76,34 @@ def parse_simulation(connection, simulation_name: str, data_directory: str) -> S
     simulation.insert(connection)
 
     simulation.config = create_config(connection, simulation.id, data_directory)
-    simulation.boundary = insert_boundary(connection, simulation, data_directory)
 
-    simulation.hdf5_iterations = {}
-    directories = list(filter(
-        lambda d: int(d.split("/")[-2]) >= start_hdf5_iteration,
-        sorted([d for d in glob(f"{data_directory}/hdf5/*/")])
-    ))
+    if simulation.config.blocks_data is not None:
+        simulation.boundary = insert_boundary(connection, simulation, data_directory)
 
-    progress = ProgressFunction(len(directories), f"{simulation_name} | Inserting HDF5 iterations")
-    for directory in directories:
-        progress.run(insert_hdf5_iteration, connection, simulation, directory)
+        simulation.hdf5_iterations = {}
+
+        # Get remaining directories
+        directories = list(filter(
+            lambda d: int(d.split("/")[-2]) >= start_hdf5_iteration,
+            sorted([d for d in glob(f"{data_directory}/hdf5/*/")])
+        ))
+
+        # Insert HDF5 iterations data into the database
+        progress = ProgressFunction(len(directories), f"{simulation_name} | Inserting HDF5 iterations")
+        for directory in directories:
+            progress.run(insert_hdf5_iteration, connection, simulation, directory)
+    else:
+        print(f"Unable to parse HDF5 files due to the blocks info missing")
 
     simulation.csv_iterations = {}
+
+    # Get remaining csv iterations
     iterations = list(filter(
         lambda i: int(i) >= start_csv_iteration,
         sorted(list(set([d.split(".")[-2] for d in glob(f"{data_directory}/csv/*")])))
     ))
 
+    # Insert the CSV iterations data into the database
     progress = ProgressFunction(len(iterations), f"{simulation_name} | Inserting CSV iterations")
     for iteration in iterations:
         progress.run(insert_csv_iteration, connection, simulation, data_directory, iteration)
@@ -102,28 +111,45 @@ def parse_simulation(connection, simulation_name: str, data_directory: str) -> S
     return simulation
 
 
-def insert_boundary(connection, simulation, data_directory) -> Boundary:
+def insert_boundary(connection: "Connection", simulation: Simulation, data_directory: str) -> Boundary or None:
+    # The boundary is always the same, so it is only imported by parsing the first iteration
     directory = sorted([d for d in glob(f"{data_directory}/hdf5/*/")])[0]
 
     return create_boundary(connection, directory, simulation.id, simulation.config)
 
 
-def insert_hdf5_iteration(connection, simulation, directory):
+def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, directory: str):
     iteration_int = int(directory.split("/")[-2])
-    iteration_object = Hdf5Iteration(connection, iteration_int)
-    iteration_object.insert(connection, simulation.id)
+    iteration_object = Hdf5Iteration(
+        simulation_id=simulation.id,
+        iteration=iteration_int,
+        connection=connection
+    )
+    iteration_object.insert(connection)
     simulation.hdf5_iterations[iteration_int] = iteration_object
 
-    cell_positions = create_hdf5_cells(connection, iteration_object.id, directory, prefix="PLT")
-    cell_positions += create_hdf5_cells(connection, iteration_object.id, directory, prefix="RBC")
+    plt_positions = create_hdf5_cells(connection, iteration_object.id, directory, prefix="PLT")
+    rbc_positions = create_hdf5_cells(connection, iteration_object.id, directory, prefix="RBC")
 
-    create_fluid(connection, iteration_object.id, directory, simulation.id, simulation.config, cell_positions, simulation.boundary)
+    if plt_positions is not None and rbc_positions is not None:
+        cell_positions = plt_positions + rbc_positions
+    else:
+        if len(list(simulation.hdf5_iterations.keys())) <= 1:
+            print("The Cell Id field is missing from the HDF5 cell data. As a result the cell data cannot be parsed.")
+
+        cell_positions = None
+
+    create_fluid(connection, iteration_object.id, directory, simulation.config, cell_positions, simulation.boundary)
 
 
-def insert_csv_iteration(connection, simulation, data_directory, iteration):
+def insert_csv_iteration(connection: "Connection", simulation: Simulation, data_directory: str, iteration: str):
     iteration_int = int(iteration)
-    iteration_object = CSVIteration(connection, iteration_int)
-    iteration_object.insert(connection, simulation.id)
+    iteration_object = CSVIteration.from_dict(
+        simulation_id=simulation.id,
+        iteration=iteration_int,
+        connection=connection
+    )
+    iteration_object.insert(connection)
     simulation.csv_iterations[iteration_int] = iteration_object
 
     create_csv_cells(
@@ -140,18 +166,12 @@ def insert_csv_iteration(connection, simulation, data_directory, iteration):
     )
 
 
-def load_simulation(connection, simulation_name: str, status: StatusHandler) -> Simulation:
+def load_simulation(connection: "Connection", simulation_name: str, status: StatusHandler) -> Simulation:
     try:
-        simulation = Simulation(
-            *connection.select_one(f"""
-                SELECT simulation_name, id 
-                FROM simulation 
-                WHERE simulation_name='{simulation_name}'
-            ;""")
-        )
+        simulation = Simulation.load(connection, simulation_name)
     except TypeError:
         print(f'Unable to find a simulation with the name "{simulation_name}"')
-        exit(1)
+        raise exit(1)
 
     simulation.config = load_config(connection, simulation.id)
     simulation.hdf5_iterations = load_hdf5_iterations(connection, simulation.id)

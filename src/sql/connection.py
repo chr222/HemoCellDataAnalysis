@@ -3,7 +3,7 @@ from src.sql.entity.config import Config
 from src.sql.entity.csv_cell import CSVCell
 from src.sql.entity.csv_iteration import CSVIteration
 from src.sql.entity.hdf5_cell import Hdf5Cell
-from src.sql.entity.hdf5_fluid import Fluid, Boundary
+from src.sql.entity.hdf5_fluid import HDF5Fluid, Boundary
 from src.sql.entity.hdf5_iteration import Hdf5Iteration
 from src.sql.entity.simulation import Simulation
 
@@ -19,6 +19,7 @@ class Connection:
     connection: sqlite3.dbapi2
 
     def __init__(self, database_name: str):
+        # Setup handler for numpy arrays
         sqlite3.register_adapter(np.ndarray, self.adapt_array)
         sqlite3.register_converter("array", self.convert_array)
 
@@ -37,7 +38,7 @@ class Connection:
     def create_schema(self) -> sqlite3.dbapi2:
         cursor = self.connection.cursor()
 
-        for entity in [Simulation, Config, Block, Hdf5Iteration, Hdf5Cell, Fluid, Boundary, CSVIteration, CSVCell]:
+        for entity in [Simulation, Config, Block, Hdf5Iteration, Hdf5Cell, HDF5Fluid, Boundary, CSVIteration, CSVCell]:
             cursor.execute(entity.get_schema())
 
         self.connection.commit()
@@ -65,10 +66,10 @@ class Connection:
 
         self.connection.commit()
 
-    def exists(self, command) -> (bool, Union[int, None]):
+    def exists(self, command, *args) -> (bool, Union[int, None]):
         cursor = self.connection.cursor()
 
-        cursor.execute(command)
+        cursor.execute(command, args)
 
         result = cursor.fetchone()
 
@@ -77,36 +78,38 @@ class Connection:
         else:
             return True, tuple(result)[0]
 
-    def select_all(self, command) -> list:
-        return list(self.connection.execute(command))
+    def select_all(self, command, *args) -> list:
+        return list(self.connection.execute(command, args))
 
     def select_prepared(self, command: str, args: list) -> list:
         return list(self.connection.execute(command, args))
 
-    def select_one(self, command) -> tuple:
-        cursor = self.connection.cursor()
+    def select_one(self, command, *args) -> tuple or None:
+        row = self.connection.execute(command, args).fetchone()
 
-        cursor.execute(command)
+        if row is None:
+            return None
+        else:
+            return tuple(row)
 
-        return tuple(cursor.fetchone())
-
-    def count(self, command) -> int:
-        cursor = self.connection.cursor()
-
-        cursor.execute(command)
-
-        return len(list(cursor.fetchall()))
+    def count(self, command, *args) -> int:
+        return len(list(self.connection.execute(command, *args).fetchall()))
 
     def remove_simulation(self, simulation_name: str):
-        self.connection.execute("PRAGMA foreign_keys = ON")
+        """
+        Remove a simulation from the database by its name
+        :param simulation_name: Name of the simulation to remove
+        """
 
-        cursor = self.connection.cursor()
-
-        cursor.execute(f"DELETE from simulation WHERE simulation_name='{simulation_name}';")
-
-        self.connection.commit()
+        self.remove(f"DELETE from simulation WHERE simulation_name='{simulation_name}';")
 
     def cleanup_before_continue(self, simulation_id) -> (int, int):
+        """
+        Remove the config, boundary and last inserted HDF5 or CSV iteration since that might be incomplete.
+        :param simulation_id: The id of the simulation to continue inserting
+        :return: (hdf5 iteration to continue from, csv iteration to continue from)
+        """
+
         self.remove(f"DELETE FROM config WHERE simulation_id={simulation_id};")
         self.remove(f"DELETE FROM boundary WHERE simulation_id={simulation_id};")
 
@@ -146,6 +149,13 @@ class Connection:
 
     @staticmethod
     def find_json_string(prefix: str, data: str) -> str:
+        """
+        Get JSON string from text by its prefix and check if its brackets are complete
+        :param prefix: Label before the JSON object
+        :param data: The data to search through
+        :return: Validated json string of the data
+        """
+
         possible_data = (re.search(prefix + ": ({.*})", data.replace("\t", " ").replace("\n", ""))).group(1)
 
         result = ""
@@ -164,6 +174,9 @@ class Connection:
         raise Exception("Could not find end of json_string")
 
     def start_progress_tracker(self, handler):
+        """
+        A progress tracker used to visualize the progress of a query.
+        """
         self.connection.set_progress_handler(handler, 10)
 
     def stop_progress_tracker(self):
@@ -172,8 +185,9 @@ class Connection:
     @staticmethod
     def adapt_array(array):
         """
-        http://stackoverflow.com/a/31312102/190597 (SoulNibbler)
+        Compress a numpy array
         """
+
         out = io.BytesIO()
         np.save(out, array)
         out.seek(0)
@@ -181,6 +195,10 @@ class Connection:
 
     @staticmethod
     def convert_array(text):
+        """
+        Decode a numpy array
+        """
+
         out = io.BytesIO(text)
         out.seek(0)
         return np.load(out)

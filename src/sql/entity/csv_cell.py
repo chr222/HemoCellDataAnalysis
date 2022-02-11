@@ -1,39 +1,29 @@
+import sys
+
 import numpy as np
 from dataclasses import dataclass
 import inspect
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING, Annotated
 from math import sqrt
+
+import params
+from src.linalg import Vector3
+from src.sql.entity import Entity, parent
+
+if TYPE_CHECKING:
+    from src.sql.connection import Connection
 
 
 @dataclass
-class CSVCell:
-    position: np.ndarray
+class CSVCell(Entity):
+    iteration_id: Annotated[int, parent('csv_iteration', 'id')]
+    prefix: str
+    position: Vector3
     area: float
     volume: float
     atomic_block: int
     cell_id: int
-    velocity: np.ndarray
-    id: int = None
-
-    @staticmethod
-    def get_schema() -> str:
-        return """CREATE TABLE csv_cell (
-                    id integer PRIMARY KEY,
-                    prefix text,
-                    iteration_id integer,
-                    position_x real,
-                    position_y real,
-                    position_z real,
-                    area real,
-                    volume real,
-                    atomic_block integer,
-                    cell_id integer,
-                    base_cell_id integer,
-                    velocity_x real,
-                    velocity_y real,
-                    velocity_z real,
-                    FOREIGN KEY (iteration_id) REFERENCES csv_iteration (id) ON DELETE CASCADE    
-                  );"""
+    velocity: Vector3
 
 
 class CSVCellData(Dict[int, Any]):
@@ -83,7 +73,11 @@ class CSVCells:
             # The name of the parent function is the column it should query
             column = inspect.stack()[1].function
 
-        result = self.connection.select_all(f"SELECT cell_id, {column} FROM csv_cell WHERE iteration_id='{self.iteration_id}' AND prefix='{self.prefix}';")
+        result = self.connection.select_all(
+            f"SELECT cell_id, {column} FROM csv_cell WHERE iteration_id=? AND prefix=?;",
+            self.iteration_id,
+            self.prefix
+        )
 
         return CSVCellData(result)
     
@@ -108,34 +102,31 @@ class CSVCells:
         return self._get_value()
 
 
-def create_csv_cells(connection, iteration_id: int, file: str, prefix: str):
+def create_csv_cells(connection: "Connection", iteration_id: int, file: str, prefix: str):
     with open(file) as f:
-        # Skip header
-        f.readline()
+        columns = {column: i for i, column in enumerate(f.readline().rstrip().split(','))}
 
         cells = []
         for i, line in enumerate(f.readlines()):
             values = line.rstrip().split(',')
 
+            data = {}
+            for hdf5_name, entity_name in params.CSV_CELL_FIELDS:
+                try:
+                    data[entity_name] = values[columns[hdf5_name]]
+                except KeyError:
+                    print(f"Could not find the '{hdf5_name}' column in the {prefix} cell CSV dataset")
+
             try:
                 cells.append(
-                    CSVCell(
-                        position=np.array([float(values[0]), float(values[1]), float(values[2])]),
-                        area=float(values[3]),
-                        volume=float(values[4]),
-                        atomic_block=int(values[5]),
-                        cell_id=int(values[6]),  # values[7] is baseCellId which is the same as cell_id so we skip that
-                        velocity=np.array([float(values[8]), float(values[9]), float(values[10])])
+                    CSVCell.from_dict(
+                        iteration_id=iteration_id,
+                        prefix=prefix,
+                        **data
                     )
                 )
             except Exception as e:
-                print(iteration_id, prefix, i, values)
+                print(f"Could not parse CSV {prefix} data at iteration {iteration_id} at line {i} with the values: {values}", sys.stderr)
                 raise e
 
-        connection.insert_many(
-            f"""
-            INSERT INTO csv_cell (iteration_id, prefix, position_x, position_y, position_z, area, volume, atomic_block, cell_id, velocity_x, velocity_y, velocity_z) 
-            VALUES ('{iteration_id}', '{prefix}', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
-            list(map(lambda cell: (*cell.position, cell.area, cell.volume, cell.atomic_block, cell.cell_id, *cell.velocity), cells))
-        )
+        CSVCell.insert_many(connection, cells)

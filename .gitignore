@@ -3,4 +3,5 @@ output/
 venv/
 visualizations/
 data/
+.pytest_cache/
 params.py

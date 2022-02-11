@@ -4,11 +4,19 @@ from glob import glob
 import h5py
 import inspect
 import numpy as np
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING, Annotated
+
+import params
+from src.sql.entity import Entity, parent
+
+if TYPE_CHECKING:
+    from src.sql.connection import Connection
 
 
 @dataclass
-class Hdf5Cell:
+class Hdf5Cell(Entity):
+    prefix: str
+    iteration_id: Annotated[int, parent('hdf5_iteration', 'id')]
     area_force: np.ndarray = np.empty((0, 3))
     bending_force: np.ndarray = np.empty((0, 3))
     inner_link_force: np.ndarray = np.empty((0, 3))
@@ -19,38 +27,9 @@ class Hdf5Cell:
     velocity: np.ndarray = np.empty((0, 3))
     viscous_force: np.ndarray = np.empty((0, 3))
     volume_force: np.ndarray = np.empty((0, 3))
-    id: int = None
 
-    def append(self, area_force, bending_force, inner_link_force, link_force, position, repulsion_force, total_force, velocity, viscous_force, volume_force):
-        self.area_force = np.append(self.area_force, [area_force], axis=0)
-        self.bending_force = np.append(self.bending_force, [bending_force], axis=0)
-        self.inner_link_force = np.append(self.inner_link_force, [inner_link_force], axis=0)
-        self.link_force = np.append(self.link_force, [link_force], axis=0)
-        self.position = np.append(self.position, [position], axis=0)
-        self.repulsion_force = np.append(self.repulsion_force, [repulsion_force], axis=0)
-        self.total_force = np.append(self.total_force, [total_force], axis=0)
-        self.velocity = np.append(self.velocity, [velocity], axis=0)
-        self.viscous_force = np.append(self.viscous_force, [viscous_force], axis=0)
-        self.volume_force = np.append(self.volume_force, [volume_force], axis=0)
-
-    @staticmethod
-    def get_schema() -> str:
-        return """CREATE TABLE hdf5_cell (
-                    id integer PRIMARY KEY,
-                    prefix text,
-                    iteration_id integer,
-                    area_force array,
-                    bending_force array,
-                    inner_link_force array,
-                    link_force array,
-                    position array,
-                    repulsion_force array,
-                    total_force array,
-                    velocity array,
-                    viscous_force array,
-                    volume_force array,
-                    FOREIGN KEY (iteration_id) REFERENCES hdf5_iteration (id) ON DELETE CASCADE      
-                  );"""
+    def __getitem__(self, item):
+        return getattr(self, item)
 
 
 class Hdf5CellData(List[np.ndarray]):
@@ -88,11 +67,19 @@ class Hdf5Cells:
         if column is None:
             column = inspect.stack()[1].function
 
-        return Hdf5CellData(self.connection.select_all(f"""SELECT {column} FROM hdf5_cell WHERE iteration_id='{self.iteration_id}' AND prefix='{self.prefix}';"""))
+        return Hdf5CellData(self.connection.select_all(
+            f"SELECT {column} FROM hdf5_cell WHERE iteration_id=? AND prefix=?;",
+            self.iteration_id,
+            self.prefix
+        ))
 
     @property
     def count(self) -> int:
-        return self.connection.select_one(f"SELECT COUNT(*) FROM hdf5_cell WHERE iteration_id='{self.iteration_id}' AND prefix='{self.prefix}'")[0]
+        return self.connection.select_one(
+            f"SELECT COUNT(*) FROM hdf5_cell WHERE iteration_id=? AND prefix=?",
+            self.iteration_id,
+            self.prefix
+        )[0]
 
     @property
     def area_force(self) -> Hdf5CellData:
@@ -135,47 +122,26 @@ class Hdf5Cells:
         return self._get_value()
 
 
-def create_hdf5_cells(connection, iteration_id: int, directory: str, prefix: str) -> List[np.ndarray]:
-    cells: Dict[int, Hdf5Cell] = defaultdict(Hdf5Cell)
+def create_hdf5_cells(connection: "Connection", iteration_id: int, directory: str, prefix: str) -> List[np.ndarray] or None:
+    cells: Dict[int, Hdf5Cell] = defaultdict(lambda: Hdf5Cell(iteration_id=iteration_id, prefix=prefix))
 
     files = sorted([f for f in glob(directory + f"{prefix}.*.p.*.h5")])
     for file in files:
         with h5py.File(file, 'r') as f:
-            cell_id = np.array(f['Cell Id'], dtype=int)
-            area_force = np.array(f['Area force'])
-            bending_force = np.array(f['Bending force'])
-            inner_link_force = np.array(f['Inner link force'])
-            link_force = np.array(f['Link force'])
-            position = np.array(f['Position'])
-            repulsion_force = np.array(f['Repulsion force'])
-            total_force = np.array(f['Total force'])
-            velocity = np.array(f['Velocity'])
-            viscous_force = np.array(f['Viscous force'])
-            volume_force = np.array(f['Volume force'])
+            try:
+                cell_id = np.array(f['Cell Id'], dtype=int)
+            except KeyError:
+                return None
 
-        for i in range(len(cell_id)):
-            cells[cell_id[i][0]].append(
-                area_force[i],
-                bending_force[i],
-                inner_link_force[i],
-                link_force[i],
-                position[i],
-                repulsion_force[i],
-                total_force[i],
-                velocity[i],
-                viscous_force[i],
-                volume_force[i]
-            )
+            for hdf5_name, entity_name in params.HDF5_CELL_FIELDS:
+                try:
+                    dataset = np.array(f[hdf5_name])
+                except KeyError:
+                    print(f"Could not find '{hdf5_name}' in the HDF5 {prefix} cell dataset")
+                    continue
 
-    connection.insert_many(
-        f"""
-            INSERT INTO hdf5_cell (iteration_id, prefix, area_force, bending_force, inner_link_force, link_force, position, repulsion_force, total_force, velocity, viscous_force, volume_force) 
-            VALUES ('{iteration_id}', '{prefix}', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """,
-        list(map(
-            lambda cell: (cell.area_force, cell.bending_force, cell.inner_link_force, cell.link_force, cell.position, cell.repulsion_force, cell.total_force, cell.velocity, cell.viscous_force, cell.volume_force),
-            cells.values()
-        ))
-    )
+                for i in range(len(cell_id)):
+                    np.append(cells[cell_id[i][0]][entity_name], [dataset[i]], axis=0)
 
+    Hdf5Cell.insert_many(connection, list(cells.values()))
     return [cell.position for cell in cells.values()]
