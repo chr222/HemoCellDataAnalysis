@@ -80,6 +80,6 @@ def load_config(connection: "Connection", simulation_id: int) -> Config:
     if len(blocks):
         config.blocks_data = {block.atomic_block: block for block in blocks}
     else:
-        print("This simulation is missing blocks data. As a result the HDF5 cannot be parsed.")
+        print("This simulation is missing blocks data. As a result the HDF5 cannot be parsed.", file=sys.stderr)
 
     return config

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import params
 from src.sql.entity import parent, exclude, Entity
 from src.sql.entity.boundary import Boundary
@@ -76,7 +78,7 @@ def create_fluid(connection: "Connection", iteration_id: int, directory: str, co
                 try:
                     hdf5_data[entity_name] = np.array(f[hdf5_name])
                 except KeyError:
-                    print(f"Could not find '{hdf5_name}' in the HDF5 fluid data")
+                    print(f"Could not find '{hdf5_name}' in the HDF5 fluid data", file=sys.stderr)
 
         # Initialize data
         if i == 0:

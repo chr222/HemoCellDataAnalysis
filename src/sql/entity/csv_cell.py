@@ -115,7 +115,7 @@ def create_csv_cells(connection: "Connection", iteration_id: int, file: str, pre
                 try:
                     data[entity_name] = values[columns[hdf5_name]]
                 except KeyError:
-                    print(f"Could not find the '{hdf5_name}' column in the {prefix} cell CSV dataset")
+                    print(f"Could not find the '{hdf5_name}' column in the {prefix} cell CSV dataset", file=sys.stderr)
 
             try:
                 cells.append(
@@ -126,7 +126,7 @@ def create_csv_cells(connection: "Connection", iteration_id: int, file: str, pre
                     )
                 )
             except Exception as e:
-                print(f"Could not parse CSV {prefix} data at iteration {iteration_id} at line {i} with the values: {values}", sys.stderr)
+                print(f"Could not parse CSV {prefix} data at iteration {iteration_id} at line {i} with the values: {values}", file=sys.stderr)
                 raise e
 
         CSVCell.insert_many(connection, cells)

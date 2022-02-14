@@ -1,3 +1,5 @@
+import sys
+
 from src.sql.entity import Entity, exclude, unique
 from src.sql.entity.boundary import Boundary, load_boundary, create_boundary
 from src.sql.entity.bulk_collector import BulkCollector
@@ -78,7 +80,10 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
     simulation.config = create_config(connection, simulation.id, data_directory)
 
     if simulation.config.blocks_data is not None:
-        simulation.boundary = insert_boundary(connection, simulation, data_directory)
+        try:
+            simulation.boundary = insert_boundary(connection, simulation, data_directory)
+        except IndexError:
+            print("Could not parse the HDF5 boundary map since the atomic blocks data in the ConfigParams is incorrect.", file=sys.stderr)
 
         simulation.hdf5_iterations = {}
 
@@ -89,11 +94,14 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
         ))
 
         # Insert HDF5 iterations data into the database
-        progress = ProgressFunction(len(directories), f"{simulation_name} | Inserting HDF5 iterations")
-        for directory in directories:
-            progress.run(insert_hdf5_iteration, connection, simulation, directory)
+        try:
+            progress = ProgressFunction(len(directories), f"{simulation_name} | Inserting HDF5 iterations")
+            for directory in directories:
+                progress.run(insert_hdf5_iteration, connection, simulation, directory)
+        except IndexError:
+            print("\nCould not parse the HDF5 fluid data since the atomic blocks data in the ConfigParams is incorrect.\n", file=sys.stderr)
     else:
-        print(f"Unable to parse HDF5 files due to the blocks info missing")
+        print(f"Unable to parse HDF5 files due to the blocks info missing", file=sys.stderr)
 
     simulation.csv_iterations = {}
 
@@ -135,7 +143,7 @@ def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, dire
         cell_positions = plt_positions + rbc_positions
     else:
         if len(list(simulation.hdf5_iterations.keys())) <= 1:
-            print("The Cell Id field is missing from the HDF5 cell data. As a result the cell data cannot be parsed.")
+            print("The Cell Id field is missing from the HDF5 cell data. As a result the cell data cannot be parsed.", file=sys.stderr)
 
         cell_positions = None
 
@@ -170,7 +178,7 @@ def load_simulation(connection: "Connection", simulation_name: str, status: Stat
     try:
         simulation = Simulation.load(connection, simulation_name)
     except TypeError:
-        print(f'Unable to find a simulation with the name "{simulation_name}"')
+        print(f'Unable to find a simulation with the name "{simulation_name}"', file=sys.stderr)
         raise exit(1)
 
     simulation.config = load_config(connection, simulation.id)

@@ -1,3 +1,4 @@
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from glob import glob
@@ -137,7 +138,7 @@ def create_hdf5_cells(connection: "Connection", iteration_id: int, directory: st
                 try:
                     dataset = np.array(f[hdf5_name])
                 except KeyError:
-                    print(f"Could not find '{hdf5_name}' in the HDF5 {prefix} cell dataset")
+                    print(f"Could not find '{hdf5_name}' in the HDF5 {prefix} cell dataset", file=sys.stderr)
                     continue
 
                 for i in range(len(cell_id)):

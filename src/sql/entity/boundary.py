@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass
 from glob import glob
 import h5py
@@ -45,7 +46,7 @@ def create_boundary(connection, directory: str, simulation_id: int, config: Conf
             try:
                 hdf5_is_boundary = np.array(f['Boundary'])
             except KeyError:
-                print("Could not find the Boundary map in the HDF5 fluid dataset")
+                print("Could not find the Boundary map in the HDF5 fluid dataset", file=sys.stderr)
                 return None
 
         size: Vector3Int = config.blocks_data[atomic_block].size
