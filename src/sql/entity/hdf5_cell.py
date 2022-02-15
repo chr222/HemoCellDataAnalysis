@@ -32,6 +32,9 @@ class Hdf5Cell(Entity):
     def __getitem__(self, item):
         return getattr(self, item)
 
+    def append(self, key, value):
+        setattr(self, key, np.append(getattr(self, key), [value], axis=0))
+
 
 class Hdf5CellData(List[np.ndarray]):
     def __init__(self, result: List[Tuple[np.ndarray]]):
@@ -142,7 +145,7 @@ def create_hdf5_cells(connection: "Connection", iteration_id: int, directory: st
                     continue
 
                 for i in range(len(cell_id)):
-                    np.append(cells[cell_id[i][0]][entity_name], [dataset[i]], axis=0)
+                    cells[cell_id[i][0]].append(entity_name, dataset[i])
 
     Hdf5Cell.insert_many(connection, list(cells.values()))
     return [cell.position for cell in cells.values()]
