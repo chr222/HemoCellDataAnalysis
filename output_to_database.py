@@ -8,11 +8,12 @@ import sys
 from time import time
 
 
-def import_simulation(simulation_name: str, data_directory: str):
+def import_simulation(simulation_name: str, data_directory: str, config_path: str = None):
     """
     Import the simulation into the database
     :param simulation_name: The name you want to give the simulation in the database
     :param data_directory: The directory with data that needs to be imported
+    :param config_path: The path to the config file. By default it will use the one in the output directory
     """
 
     try:
@@ -24,7 +25,8 @@ def import_simulation(simulation_name: str, data_directory: str):
         parse_simulation(
             connection,
             simulation_name,
-            data_directory
+            data_directory,
+            config_path
         )
         sys.stdout.write(f"\rImported simulation \"{simulation_name}\" in {time_remaining_to_string(time() - start_time)} total\n\n")
         sys.stdout.flush()
@@ -39,6 +41,7 @@ def setup_argument_parser() -> ArgumentParser:
 
     parser.add_argument('name', metavar='name', type=str, help='The name you want to give to the simulation in the database.')
     parser.add_argument('directory', metavar='data_directory', type=str, help='The path to the output directory of the HemoCell simulation.')
+    parser.add_argument('--config', type=str, default=None, help='(OPTIONAL) The path to the config file (otherwise it will use the one in the output directory)')
 
     return parser
 
@@ -47,4 +50,4 @@ if __name__ == '__main__':
     arg_parser = setup_argument_parser()
     args = arg_parser.parse_args()
 
-    import_simulation(args.name, args.directory)
+    import_simulation(args.name, args.directory, args.config)

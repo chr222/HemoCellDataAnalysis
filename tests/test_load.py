@@ -1,19 +1,13 @@
-import json
-import sys
-from glob import glob
-from typing import Dict
-
+from bs4 import BeautifulSoup
 import pytest
 import os
 
-from linalg import Vector3Int
+import params
 from progress import StatusHandler
-from sql.entity.block import Block
-from sql.entity.boundary import load_boundary
-from sql.entity.csv_iteration import load_csv_iterations
-from sql.entity.hdf5_iteration import Hdf5Iteration, load_hdf5_iterations
-from src.sql.entity.simulation import Simulation, insert_boundary, insert_hdf5_iteration, insert_csv_iteration, \
-    parse_simulation, load_simulation
+from src.sql.entity.boundary import load_boundary
+from src.sql.entity.csv_iteration import load_csv_iterations
+from src.sql.entity.hdf5_iteration import load_hdf5_iterations
+from src.sql.entity.simulation import Simulation, parse_simulation, load_simulation
 from src.sql.entity.config import create_config, Config, load_config
 from src.sql.connection import Connection
 
@@ -51,12 +45,21 @@ def loaded_simulation(connection):
 
 @pytest.fixture
 def empty_config(connection, empty_simulation):
-    with open(f"{data_directory}/log/logfile", "r") as f:
-        data = "".join([line for line in f.readlines()])
-        result = connection.find_json_string("ConfigParams", data)
-        params = json.loads(result)
-        config = Config.from_dict(simulation_id=empty_simulation.id, **params)
-        config.insert(connection)
+    with open(f"{data_directory}/config.xml", 'r') as f:
+        data = BeautifulSoup(f.read(), 'xml')
+
+    config_params = {}
+    for config_field, entity_field in [('dx', 'dx'), ('dt', 'dt')] + params.CONFIG_FIELDS:
+        tag = data.find(config_field)
+
+        if tag is None:
+            continue
+
+        value_type = Config.get_property_type(entity_field)
+        config_params[entity_field] = value_type(tag.text.strip())
+
+    config = Config(simulation_id=empty_simulation.id, **config_params)
+    config.insert(connection)
 
     return config
 
@@ -66,17 +69,9 @@ def config(connection, empty_simulation):
     return create_config(connection, empty_simulation.id, data_directory)
 
 
-def test_load_config_without_blocks(connection, empty_simulation, empty_config):
+def test_load_config(connection, empty_simulation, empty_config):
     found_config = load_config(connection, empty_simulation.id)
 
-    assert found_config.blocks_data is None
-    assert found_config.id is not None
-
-
-def test_load_config_with_blocks(connection, empty_simulation, config):
-    found_config = load_config(connection, empty_simulation.id)
-
-    assert found_config.blocks_data is not None
     assert found_config.id is not None
 
 

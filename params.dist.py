@@ -1,6 +1,18 @@
 # Full path to database (will be created if it does not exist yet)
 DATABASE_NAME = '/media/lynxens/HemoCellData/Projects/HemoCell/hemocell.db'
 
+# The fields you want to retrieve from the config.xml file and their corresponding name in the Config Entity.
+# (Always collects dx and dt)
+CONFIG_FIELDS = [
+    ('warmup', 'warmup'),
+    ('stepMaterialEvery', 'stepMaterialEvery'),
+    ('stepParticleEvery', 'stepParticleEvery'),
+    ('Re', 'Re'),
+    ('kRep', 'kRep'),
+    ('RepCutoff', 'RepCutoff'),
+    ('tmax', 'tmax')
+]
+
 # The columns you want to extract from the CSV files and their corresponding name in the CSVCell Entity
 CSV_CELL_FIELDS = [
     ('X', 'position_x'),

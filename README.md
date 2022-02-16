@@ -14,11 +14,13 @@ To set up this tool the following steps need to be done manually.
 2. Copy [params.dist.py](params.dist.py) and rename it to params.py
 3. Set the required variables in params.py
    1. DATABASE_NAME: This is the path to the database that you want to use. If it does not exist yet, it will be created.
-   2. CSV_CELL_FIELDS: This is a map of the columns you want to extract from the CSV files and their corresponding name 
+   2. CONFIG_FIELDS: This is a map of the fields you want to retrieve from the config.xml file and their corresponding 
+name in the Config Entity.
+   3. CSV_CELL_FIELDS: This is a map of the columns you want to extract from the CSV files and their corresponding name 
 you want in the [CSVCell](src/sql/entity/csv_cell.py) Entity.
-   3. HDF5_FLUID_FIELDS: This is a map of the fields you want to retrieve from the fluid HDF5 files and their 
+   4. HDF5_FLUID_FIELDS: This is a map of the fields you want to retrieve from the fluid HDF5 files and their 
 corresponding name you want in the [HDF5Fluid](src/sql/entity/hdf5_fluid.py) Entity.
-   4. HDF5_CELL_FIELDS: This is a map of the fields you want to retrieve from the cell HDF5 files and their 
+   5. HDF5_CELL_FIELDS: This is a map of the fields you want to retrieve from the cell HDF5 files and their 
 corresponding name you want in the [HDF5Cell](src/sql/entity/hdf5_cell.py) Entity
 
 ### 2.1 HemoCell changes
@@ -29,7 +31,7 @@ processing script that allows scalars can to be used in ParaView.
 
 The next thing you need to do is add some extra data to the output of your program. To be able to process the cell
 HDF5 output, you will need to add the OUTPUT_POSITION, OUTPUT_TRIANGLES and OUTPUT_CELL_ID flags to it. Next, the
-OUTPUT_BOUNDARY flag is needed in the fluid output. Now, your setOuputs function should look something like this:
+OUTPUT_BOUNDARY flag is needed in the fluid output. Eventually your setOuputs function should look something like this:
 ```
 void setupOutputs(HemoCell &hemoCell) {
     vector<int> cellOutputs = {
@@ -48,55 +50,16 @@ void setupOutputs(HemoCell &hemoCell) {
 }
 ```
 
-The last change to your program is the addition of a function that outputs the config params in a JSON format. Furthermore,
-it outputs the sizes and offset of the atomic blocks, which are needed to parse the HDF5 fluid data into numpy arrays.
-In this function you can also decide what parameters you want to save in the database. The only values that the tool requires
-are nx, ny, nz, dx and dt.
+The last change to your program is the addition of a function that copies the config file to the output directory. Call
+this function after the HemoCell class has been created.
 
 ```
-void printConfigParams(Config *cfg, VoxelizedDomain3D<T> *voxelizedDomain) {
-    hlog << "ConfigParams: {" << std::endl;
+void copyConfigToOutputDirectory(char *configFileName)
+{
+    std::ifstream src(configFileName, std::ios::binary);
+    std::ofstream dst(global::directories().getOutputDir() + "/config.xml", std::ios::binary);
 
-    SparseBlockStructure3D const& sparseBlock = voxelizedDomain->getVoxelMatrix().getMultiBlockManagement().getSparseBlockStructure();
-    plint numBlocks = sparseBlock.getNumBlocks();
-    hlog << "\t" << "\"blocks\": {" << std::endl;
-    for (const auto &it : sparseBlock.getBulks()) {
-        hlog << "\t\t" << "\"" << it.first << "\": {" << std::endl;
-        hlog << "\t\t\t" << "\"size\": [" << it.second.getNx() << ", " << it.second.getNy() << ", " << it.second.getNz() << "]," << std::endl;
-        hlog << "\t\t\t" << "\"offset\": [" << it.second.x0 << ", " << it.second.y0 << ", " << it.second.z0 << "]" << std::endl;
-
-        if (it.first == numBlocks - 1) {
-            hlog << "\t\t" << "}" << std::endl;
-        } else {
-            hlog << "\t\t" << "}," << std::endl;
-        }
-    }
-    hlog << "\t" << "}," << std::endl;
-    hlog << "\t" << "\"nx\": " << sparseBlock.getBoundingBox().getNx() << "," << std::endl;
-    hlog << "\t" << "\"ny\": " << sparseBlock.getBoundingBox().getNy() << "," << std::endl;
-    hlog << "\t" << "\"nz\": " << sparseBlock.getBoundingBox().getNz() << "," << std::endl;
-
-    hlog << "\t" << "\"warmup\": " << (*cfg)["parameters"]["warmup"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"stepMaterialEvery\": " << (*cfg)["ibm"]["stepMaterialEvery"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"stepParticleEvery\": " << (*cfg)["ibm"]["stepParticleEvery"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"fluidEnvelope\": " << (*cfg)["domain"]["fluidEnvelope"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"rhoP\": " << (*cfg)["domain"]["rhoP"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"nuP\": " << (*cfg)["domain"]["nuP"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"dx\": " << (*cfg)["domain"]["dx"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"dt\": " << (*cfg)["domain"]["dt"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"refDir\": " << (*cfg)["domain"]["refDir"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"refDirN\": " << (*cfg)["domain"]["refDirN"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"blockSize\": " << (*cfg)["domain"]["blockSize"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"kBT\": " << (*cfg)["domain"]["kBT"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"Re\": " << (*cfg)["domain"]["Re"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"particleEnvelope\": " << (*cfg)["domain"]["particleEnvelope"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"kRep\": " << (*cfg)["domain"]["kRep"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"RepCutoff\": " << (*cfg)["domain"]["RepCutoff"].read<double>() << "," << std::endl;
-    hlog << "\t" << "\"tmax\": " << (*cfg)["sim"]["tmax"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"tmeas\": " << (*cfg)["sim"]["tmeas"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"tcsv\": " << (*cfg)["sim"]["tcsv"].read<int>() << "," << std::endl;
-    hlog << "\t" << "\"tcheckpoint\": " << (*cfg)["sim"]["tcheckpoint"].read<int>() << std::endl;
-    hlog << "}" << std::endl;
+    dst << src.rdbuf();
 }
 ```
 

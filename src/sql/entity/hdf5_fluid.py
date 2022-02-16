@@ -4,8 +4,6 @@ import sys
 
 import params
 from src.sql.entity import parent, exclude, Entity
-from src.sql.entity.boundary import Boundary
-from src.sql.entity.config import Config
 from src.linalg import Vector3Int
 
 from dataclasses import dataclass
@@ -18,6 +16,8 @@ from typing import List, Annotated, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.sql.connection import Connection
+    from src.sql.entity.boundary import Boundary
+    from src.sql.entity.config import Config
 
 
 @dataclass
@@ -64,7 +64,7 @@ class HDF5Fluid(Entity):
         return self._get_value()
 
 
-def create_fluid(connection: "Connection", iteration_id: int, directory: str, config: Config, cells: List[np.ndarray] = None, boundary: Boundary = None):
+def create_fluid(connection: "Connection", iteration_id: int, directory: str, config: "Config", cells: List[np.ndarray] = None, boundary: "Boundary" = None):
     data = {k: None for (_, k) in params.HDF5_FLUID_FIELDS}
 
     files = sorted([f for f in glob(directory + f"Fluid.*.p.*.h5")])
@@ -91,8 +91,8 @@ def create_fluid(connection: "Connection", iteration_id: int, directory: str, co
                 else:
                     data[k] = np.zeros((config.ny, config.nx, config.nz, vector_size))
 
-        size: Vector3Int = config.blocks_data[atomic_block].size
-        offset: Vector3Int = config.blocks_data[atomic_block].offset
+        size: Vector3Int = config.blocks[atomic_block].size
+        offset: Vector3Int = config.blocks[atomic_block].offset
         for z in range(1, size.z + 1):
             for y in range(1, size.y + 1):
                 for x in range(1, size.x + 1):
@@ -113,21 +113,13 @@ def create_fluid(connection: "Connection", iteration_id: int, directory: str, co
     fluid = HDF5Fluid.from_dict(
         iteration_id=iteration_id,
         connection=connection,
-        _hematocrit=create_hematocrit(config, cells, boundary.boundary_map) if cells is not None and boundary is not None else None,
+        _hematocrit=create_hematocrit(config, cells, boundary) if cells is not None else None,
         **data
     )
     fluid.insert(connection)
 
 
-def create_hematocrit(config: Config, cells: List[np.ndarray], boundary_map: np.ndarray) -> np.ndarray:
-    """
-
-    :param config:
-    :param cells:
-    :param boundary_map:
-    :return:
-    """
-
+def create_hematocrit(config: "Config", cells: List[np.ndarray], boundary: "Boundary" or None) -> np.ndarray:
     hematocrit = np.zeros((config.ny, config.nx, config.nz))
 
     for cell in cells:
@@ -159,7 +151,8 @@ def create_hematocrit(config: Config, cells: List[np.ndarray], boundary_map: np.
 
     # Set fluid cells outside and on the border of the container to NaN, so they can be excluded
     # from further calculations
-    hematocrit[np.where(boundary_map == 1)] = np.nan
+    if boundary is not None:
+        hematocrit[np.where(boundary.boundary_map == 1)] = np.nan
 
     return hematocrit
 
@@ -171,10 +164,13 @@ class Vector3Matrix(np.ndarray):
     def __array_wrap__(self, obj):
         return np.array(obj)
 
-    def exclude_borders(self, boundary: Boundary) -> Vector3Matrix:
+    def exclude_borders(self, boundary: "Boundary" or None) -> Vector3Matrix:
         """
         Set the cells that are boundaries to NaN
         """
+
+        if boundary is None:
+            return self
 
         self[boundary.boundaries] = np.full(3, np.nan)
 
@@ -204,10 +200,13 @@ class Tensor9Matrix(np.ndarray):
     def __array_wrap__(self, obj):
         return np.array(obj)
 
-    def exclude_borders(self, boundary: Boundary) -> Tensor9Matrix:
+    def exclude_borders(self, boundary: "Boundary" or None) -> Tensor9Matrix:
         """
         Set the cells that are boundaries to NaN
         """
+
+        if boundary is None:
+            return self
 
         matrix = np.copy(self)
         matrix[boundary.boundaries] = np.full(9, np.nan)
@@ -250,10 +249,13 @@ class Tensor6Matrix(np.ndarray):
     def __array_wrap__(self, obj):
         return np.array(obj)
 
-    def exclude_borders(self, boundary: Boundary) -> Tensor6Matrix:
+    def exclude_borders(self, boundary: "Boundary" or None) -> Tensor6Matrix:
         """
         Set the cells that are boundaries to NaN
         """
+
+        if boundary is None:
+            return self
 
         matrix = np.copy(self)
         matrix[boundary.boundaries] = np.full(6, np.nan)

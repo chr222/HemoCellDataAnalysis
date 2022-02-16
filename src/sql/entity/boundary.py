@@ -49,8 +49,8 @@ def create_boundary(connection, directory: str, simulation_id: int, config: Conf
                 print("Could not find the Boundary map in the HDF5 fluid dataset", file=sys.stderr)
                 return None
 
-        size: Vector3Int = config.blocks_data[atomic_block].size
-        offset: Vector3Int = config.blocks_data[atomic_block].offset
+        size: Vector3Int = config.blocks[atomic_block].size
+        offset: Vector3Int = config.blocks[atomic_block].offset
         for z in range(1, size.z + 1):
             for y in range(1, size.y + 1):
                 for x in range(1, size.x + 1):

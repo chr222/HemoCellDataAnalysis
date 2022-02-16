@@ -1,10 +1,9 @@
+from bs4 import BeautifulSoup
 from dataclasses import dataclass
-import sys
-import json
-from typing import Annotated, Dict, TYPE_CHECKING, List
+from typing import Annotated, Dict, TYPE_CHECKING
 
-from src.linalg import Vector3Int
-from src.sql.entity.block import Block
+import params
+from src.sql.entity.block import Block, get_domain_info
 from src.sql.entity import Entity, exclude, parent
 
 if TYPE_CHECKING:
@@ -14,72 +13,56 @@ if TYPE_CHECKING:
 @dataclass
 class Config(Entity):
     simulation_id: Annotated[int, parent('simulation', 'id')]
-    nx: int
-    ny: int
-    nz: int
+
+    # Required
+    dx: float
+    dt: float
+
+    # Optional
     warmup: int
     stepMaterialEvery: int
     stepParticleEvery: int
-    fluidEnvelope: int
-    rhoP: int
-    nuP: float
-    dx: float
-    dt: float
-    refDir: int
-    refDirN: int
-    blockSize: int
-    kBT: float
     Re: float
-    particleEnvelope: int
     kRep: float
     RepCutoff: float
     tmax: int
-    tmeas: int
-    tcsv: int
-    tcheckpoint: int
 
-    # Excluded data
-    blocks_data: Annotated[Dict[str, Block], exclude] = None
+    # Required (retrieved by get_domain_info)
+    nx: int = None
+    ny: int = None
+    nz: int = None
+    blocks: Annotated[Dict[str, Block], exclude] = None
 
 
-def create_config(connection: "Connection", simulation_id: int, data_directory: str) -> Config:
-    with open(f"{data_directory}/log/logfile", "r") as f:
-        data = "".join([line for line in f.readlines()])
+def create_config(connection: "Connection", simulation_id: int, data_directory: str, config_path: str = None) -> Config:
+    if config_path is None:
+        config_path = f"{data_directory}/config.xml"
 
-        try:
-            result = connection.find_json_string("ConfigParams", data)
-        except Exception:
-            print(f"Could not parse the ConfigParams JSON object in {data_directory}/log/logfile", file=sys.stderr)
-            exit(1)
+    with open(config_path, 'r') as f:
+        data = BeautifulSoup(f.read(), 'xml')
 
-        params = json.loads(result)
-        config = Config.from_dict(simulation_id=simulation_id, **params)
-        config.insert(connection)
+    config_params = {}
+    for config_field, entity_field in [('dx', 'dx'), ('dt', 'dt')] + params.CONFIG_FIELDS:
+        tag = data.find(config_field)
 
-        if 'blocks' in params:
-            config.blocks_data = {}
-            for atomic_block, block in params['blocks'].items():
-                config.blocks_data[atomic_block] = Block(
-                    config_id=config.id,
-                    atomic_block=atomic_block,
-                    size=Vector3Int(*block['size']),
-                    offset=Vector3Int(*block['offset'])
-                )
-                config.blocks_data[atomic_block].insert(connection)
-        else:
-            print(f"Missing blocks info in the ConfigParams JSON object in {data_directory}/log/logfile")
+        if tag is None:
+            continue
 
-        return config
+        value_type = Config.get_property_type(entity_field)
+        config_params[entity_field] = value_type(tag.text.strip())
+
+    config = Config(simulation_id=simulation_id, **config_params)
+
+    blocks, domain = get_domain_info(data_directory)
+    config.blocks = blocks
+    config.nx = int(domain[0])
+    config.ny = int(domain[1])
+    config.nz = int(domain[2])
+
+    config.insert(connection)
+
+    return config
 
 
 def load_config(connection: "Connection", simulation_id: int) -> Config:
-    config: Config = Config.load(connection, simulation_id)
-
-    blocks: List[Block] = Block.load_all(connection, config.id)
-
-    if len(blocks):
-        config.blocks_data = {block.atomic_block: block for block in blocks}
-    else:
-        print("This simulation is missing blocks data. As a result the HDF5 cannot be parsed.", file=sys.stderr)
-
-    return config
+    return Config.load(connection, simulation_id)

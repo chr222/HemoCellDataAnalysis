@@ -1,14 +1,11 @@
-import json
-import sys
+import numpy as np
+from bs4 import BeautifulSoup
 from glob import glob
-from typing import Dict
-
-import pytest
 import os
+import pytest
 
-from linalg import Vector3Int
-from sql.entity.block import Block
-from sql.entity.hdf5_iteration import Hdf5Iteration
+import params
+from sql.entity.block import get_domain_info
 from src.sql.entity.simulation import Simulation, insert_boundary, insert_hdf5_iteration, insert_csv_iteration, \
     parse_simulation
 from src.sql.entity.config import create_config, Config
@@ -42,12 +39,21 @@ def simulation(connection):
 
 @pytest.fixture
 def empty_config(connection, empty_simulation):
-    with open(f"{data_directory}/log/logfile", "r") as f:
-        data = "".join([line for line in f.readlines()])
-        result = connection.find_json_string("ConfigParams", data)
-        params = json.loads(result)
-        config = Config.from_dict(simulation_id=empty_simulation.id, **params)
-        config.insert(connection)
+    with open(f"{data_directory}/config.xml", 'r') as f:
+        data = BeautifulSoup(f.read(), 'xml')
+
+    config_params = {}
+    for config_field, entity_field in [('dx', 'dx'), ('dt', 'dt')] + params.CONFIG_FIELDS:
+        tag = data.find(config_field)
+
+        if tag is None:
+            continue
+
+        value_type = Config.get_property_type(entity_field)
+        config_params[entity_field] = value_type(tag.text.strip())
+
+    config = Config(simulation_id=empty_simulation.id, **config_params)
+    config.insert(connection)
 
     return config
 
@@ -61,23 +67,13 @@ def test_insert_config(connection, empty_config):
     assert empty_config.id is not None
 
 
-def test_insert_blocks(connection, empty_simulation, empty_config):
-    with open(f"{data_directory}/log/logfile", "r") as f:
-        data = "".join([line for line in f.readlines()])
-        result = connection.find_json_string("ConfigParams", data)
+def test_get_domain_info(connection, empty_simulation, empty_config):
+    blocks_data, domain = get_domain_info(data_directory)
 
-        params = json.loads(result)
+    assert np.any(domain > 0)
 
-        blocks_data = {}
-        for atomic_block, block in params['blocks'].items():
-            blocks_data[atomic_block] = Block(
-                config_id=empty_config.id,
-                atomic_block=atomic_block,
-                size=Vector3Int(*block['size']),
-                offset=Vector3Int(*block['offset'])
-            )
-            blocks_data[atomic_block].insert(connection)
-            assert blocks_data[atomic_block].id is not None
+    for atomic_block in blocks_data.keys():
+        assert blocks_data[atomic_block] is not None
 
 
 def test_insert_boundary(connection, empty_simulation, config):

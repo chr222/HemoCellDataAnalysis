@@ -306,3 +306,13 @@ class Entity:
         )
 
         return [cls.from_dict(**dict(zip(columns, params)), connection=connection) for params in param_sets]
+
+    @classmethod
+    def get_property_type(cls, property_name: str) -> type:
+        variable_types = get_type_hints(cls)
+        value_type = variable_types[property_name]
+
+        if hasattr(value_type, '__metadata__'):
+            return value_type.__origin__
+
+        return value_type

@@ -1,16 +1,15 @@
-from src.sql.entity.block import Block
+from src.sql.entity.boundary import Boundary
 from src.sql.entity.config import Config
 from src.sql.entity.csv_cell import CSVCell
 from src.sql.entity.csv_iteration import CSVIteration
 from src.sql.entity.hdf5_cell import Hdf5Cell
-from src.sql.entity.hdf5_fluid import HDF5Fluid, Boundary
+from src.sql.entity.hdf5_fluid import HDF5Fluid
 from src.sql.entity.hdf5_iteration import Hdf5Iteration
 from src.sql.entity.simulation import Simulation
 
 import io
 import numpy as np
-from os.path import isfile
-import re
+from os.path import exists, isfile
 import sqlite3
 from typing import Union
 
@@ -33,12 +32,12 @@ class Connection:
 
     @staticmethod
     def database_exists(database_name: str) -> bool:
-        return isfile(database_name)
+        return exists(database_name) and isfile(database_name)
 
     def create_schema(self) -> sqlite3.dbapi2:
         cursor = self.connection.cursor()
 
-        for entity in [Simulation, Config, Block, Hdf5Iteration, Hdf5Cell, HDF5Fluid, Boundary, CSVIteration, CSVCell]:
+        for entity in [Simulation, Config, Hdf5Iteration, Hdf5Cell, HDF5Fluid, Boundary, CSVIteration, CSVCell]:
             cursor.execute(entity.get_schema())
 
         self.connection.commit()
@@ -146,32 +145,6 @@ class Connection:
         cursor.execute(command)
 
         self.connection.commit()
-
-    @staticmethod
-    def find_json_string(prefix: str, data: str) -> str:
-        """
-        Get JSON string from text by its prefix and check if its brackets are complete
-        :param prefix: Label before the JSON object
-        :param data: The data to search through
-        :return: Validated json string of the data
-        """
-
-        possible_data = (re.search(prefix + ": ({.*})", data.replace("\t", " ").replace("\n", ""))).group(1)
-
-        result = ""
-        depth = 0
-        for char in possible_data:
-            result += char
-
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-
-                if depth == 0:
-                    return result
-
-        raise Exception("Could not find end of json_string")
 
     def start_progress_tracker(self, handler):
         """

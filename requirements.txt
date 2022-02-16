@@ -6,3 +6,5 @@ scipy
 pandas
 psutil
 pytest
+beautifulsoup4
+lxml

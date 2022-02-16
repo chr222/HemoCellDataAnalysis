@@ -27,7 +27,7 @@ class Simulation(Entity):
     config: Annotated[Config, exclude] = None
     hdf5_iterations: Annotated[Dict[int, Hdf5Iteration], exclude] = None
     csv_iterations: Annotated[Dict[int, CSVIteration], exclude] = None
-    boundary: Annotated[Boundary, exclude] = None
+    boundary: Annotated[Boundary, exclude] or None = None
     all: Annotated[BulkCollector, exclude] = None
 
     def exists(self, connection: "Connection") -> (bool, Union[int, None]):
@@ -49,7 +49,7 @@ class Simulation(Entity):
         )
 
 
-def parse_simulation(connection: "Connection", simulation_name: str, data_directory: str) -> Simulation:
+def parse_simulation(connection: "Connection", simulation_name: str, data_directory: str, config_path: str = None) -> Simulation:
     simulation = Simulation(simulation_name=simulation_name)
 
     (exists, simulation_id) = simulation.exists(connection)
@@ -77,13 +77,13 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
 
     simulation.insert(connection)
 
-    simulation.config = create_config(connection, simulation.id, data_directory)
+    simulation.config = create_config(connection, simulation.id, data_directory, config_path)
 
-    if simulation.config.blocks_data is not None:
+    if simulation.config.blocks is not None:
         try:
             simulation.boundary = insert_boundary(connection, simulation, data_directory)
         except IndexError:
-            print("Could not parse the HDF5 boundary map since the atomic blocks data in the ConfigParams is incorrect.", file=sys.stderr)
+            print("Could not parse the HDF5 boundary map since the atomic block info is incorrect.", file=sys.stderr)
 
         simulation.hdf5_iterations = {}
 
@@ -99,7 +99,7 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
             for directory in directories:
                 progress.run(insert_hdf5_iteration, connection, simulation, directory)
         except IndexError:
-            print("\nCould not parse the HDF5 fluid data since the atomic blocks data in the ConfigParams is incorrect.\n", file=sys.stderr)
+            print("\nCould not parse the HDF5 fluid data since the atomic blocks data is incorrect.\n", file=sys.stderr)
     else:
         print(f"Unable to parse HDF5 files due to the blocks info missing", file=sys.stderr)
 
