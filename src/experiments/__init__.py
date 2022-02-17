@@ -12,7 +12,7 @@ class Experiments(Graphics):
         self.status = StatusHandler()
 
         self.status.print('Connecting to database...')
-        self.connection = Connection(params.DATABASE_NAME)
+        self.connection = Connection(params.DATABASE_NAME, params.MATRIX_DIRECTORY)
         self.status.println('Connection successful')
 
         self.status.print('Loading simulation...')

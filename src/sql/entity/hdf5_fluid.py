@@ -91,24 +91,8 @@ def create_fluid(connection: "Connection", iteration_id: int, directory: str, co
                 else:
                     data[k] = np.zeros((config.ny, config.nx, config.nz, vector_size))
 
-        size: Vector3Int = config.blocks[atomic_block].size
-        offset: Vector3Int = config.blocks[atomic_block].offset
-        for z in range(1, size.z + 1):
-            for y in range(1, size.y + 1):
-                for x in range(1, size.x + 1):
-                    # Coordinates in complete container
-                    real_x = x - 1 + offset.x
-                    real_y = y - 1 + offset.y
-                    real_z = z - 1 + offset.z
-
-                    for k, hdf5_dataset in hdf5_data.items():
-                        vector_size = hdf5_dataset.shape[3]
-
-                        # Handle as scalar
-                        if vector_size == 1:
-                            data[k][real_y][real_x][real_z] = hdf5_dataset[z][y][x][0]
-                        else:
-                            data[k][real_y][real_x][real_z] = hdf5_dataset[z][y][x]
+        for k, hdf5_dataset in hdf5_data.items():
+            parse_hdf5_fluid_data(config, atomic_block, hdf5_dataset, output=data[k])
 
     fluid = HDF5Fluid.from_dict(
         iteration_id=iteration_id,
@@ -117,6 +101,31 @@ def create_fluid(connection: "Connection", iteration_id: int, directory: str, co
         **data
     )
     fluid.insert(connection)
+
+
+def parse_hdf5_fluid_data(config: Config, atomic_block: str, hdf5_dataset: np.ndarray, output: np.ndarray):
+    vector_size = hdf5_dataset.shape[3]
+
+    size: Vector3Int = config.blocks[atomic_block].size
+    offset: Vector3Int = config.blocks[atomic_block].offset
+
+    # Move axis so zyx becomes yxz and get rid of halo
+    data = np.moveaxis(hdf5_dataset, 0, 2)[1:size.y + 1, 1:size.x + 1, 1:size.z + 1]
+
+    start_x = offset.x
+    end_x = size.x + offset.x
+
+    start_y = offset.y
+    end_y = size.y + offset.y
+
+    start_z = offset.z
+    end_z = size.z + offset.z
+
+    # Handle as scalar
+    if vector_size == 1:
+        output[start_y:end_y, start_x:end_x, start_z:end_z] = data[:, :, :, 0]
+    else:
+        output[start_y:end_y, start_x:end_x, start_z:end_z] = data
 
 
 def create_hematocrit(config: "Config", cells: List[np.ndarray], boundary: "Boundary" or None) -> np.ndarray:

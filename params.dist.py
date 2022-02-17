@@ -1,6 +1,9 @@
 # Full path to database (will be created if it does not exist yet)
 DATABASE_NAME = '/media/lynxens/HemoCellData/Projects/HemoCell/hemocell.db'
 
+# Full path to directory to save matrices in (will be created if it does not exist yet)
+MATRIX_DIRECTORY = '/tmp/hemocell_matrices'
+
 # The fields you want to retrieve from the config.xml file and their corresponding name in the Config Entity.
 # (Always collects dx and dt)
 CONFIG_FIELDS = [

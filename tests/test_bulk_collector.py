@@ -8,6 +8,7 @@ from src.sql.connection import Connection
 simulation_name = 'test_project'
 data_directory = 'test_data'
 database_path = '/tmp/test.db'
+matrix_path = '/tmp/test_matrices'
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def connection():
     if os.path.exists(database_path):
         os.remove(database_path)
 
-    return Connection(database_path)
+    return Connection(database_path, matrix_path)
 
 
 @pytest.fixture

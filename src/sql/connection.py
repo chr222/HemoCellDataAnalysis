@@ -7,17 +7,22 @@ from src.sql.entity.hdf5_fluid import HDF5Fluid
 from src.sql.entity.hdf5_iteration import Hdf5Iteration
 from src.sql.entity.simulation import Simulation
 
-import io
+from glob import glob
+from math import ceil
 import numpy as np
-from os.path import exists, isfile
+from os import mkdir
+from os.path import exists, isfile, isdir
+from scipy.io import savemat, loadmat
 import sqlite3
+import sys
 from typing import Union
+from uuid import uuid4
 
 
 class Connection:
     connection: sqlite3.dbapi2
 
-    def __init__(self, database_name: str):
+    def __init__(self, database_name: str, matrix_directory: str):
         # Setup handler for numpy arrays
         sqlite3.register_adapter(np.ndarray, self.adapt_array)
         sqlite3.register_converter("array", self.convert_array)
@@ -27,8 +32,17 @@ class Connection:
         self.connection = sqlite3.connect(database_name, timeout=3600, detect_types=sqlite3.PARSE_DECLTYPES)
 
         if not db_exists:
-            print("Database does not exist yet. Creating schema...")
+            print("\rDatabase does not exist yet. Creating tables...", end="")
             self.create_schema()
+            print("\rSuccessfully created tables")
+
+        # Matrices are saved in a separate directory
+        self.matrix_directory = matrix_directory
+        if not isdir(matrix_directory):
+            print("\rMatrix directory does not exist yet", end="")
+            mkdir(matrix_directory)
+            print("\rCreated matrix directory")
+
 
     @staticmethod
     def database_exists(database_name: str) -> bool:
@@ -155,24 +169,45 @@ class Connection:
     def stop_progress_tracker(self):
         self.connection.set_progress_handler(None, 10)
 
-    @staticmethod
-    def adapt_array(array):
+    def adapt_array(self, array: np.ndarray or None):
         """
-        Compress a numpy array
-        """
-
-        out = io.BytesIO()
-        np.save(out, array)
-        out.seek(0)
-        return sqlite3.Binary(out.read())
-
-    @staticmethod
-    def convert_array(text):
-        """
-        Decode a numpy array
+        Save a numpy array in the matrix directory and save the filename in the database
         """
 
-        out = io.BytesIO(text)
-        out.seek(0)
-        return np.load(out)
+        if array is None:
+            return None
+
+        filename = f"{self.matrix_directory}/{uuid4()}"
+
+        # Size of array in GB
+        array_size = array.itemsize * array.size / 1e9
+
+        # Max size of MATLAB array
+        if array_size > 1.5:
+            for i, matrix in enumerate(np.array_split(array, int(ceil(array_size / 1.5)))):
+                savemat(f"{filename}_{i}.mat", {"array": matrix})
+        else:
+            savemat(f"{filename}.mat", {"array": array})
+
+        return filename
+
+    def convert_array(self, filename: str or None):
+        """
+        Load a numpy array from the matrix directory by the given filename
+        """
+
+        if filename is None:
+            return None
+
+        files = sorted([f for f in glob(f"{filename.decode()}*.mat")])
+
+        if len(files) == 0:
+            print(f"Could not find matrix at {filename}", file=sys.stderr)
+            return None
+
+        array: np.ndarray = loadmat(files[0]).get('array')
+        for file in files[1:]:
+            array = np.concatenate((array, loadmat(file).get('array')))
+
+        return array
 

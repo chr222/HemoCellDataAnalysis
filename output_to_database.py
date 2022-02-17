@@ -18,7 +18,7 @@ def import_simulation(simulation_name: str, data_directory: str, config_path: st
 
     try:
         # Setup connection with the database and create it if it does not exist yet
-        connection = Connection(database_name=params.DATABASE_NAME)
+        connection = Connection(database_name=params.DATABASE_NAME, matrix_directory=params.MATRIX_DIRECTORY)
 
         # Parse the simulation
         start_time = time()

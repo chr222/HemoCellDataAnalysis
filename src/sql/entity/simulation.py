@@ -80,12 +80,12 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
     simulation.config = create_config(connection, simulation.id, data_directory, config_path)
 
     if simulation.config.blocks is not None:
+        print("\rParsing Boundary from the HDF5 Fluid files", end="")
         try:
             simulation.boundary = insert_boundary(connection, simulation, data_directory)
+            print("\rParsed the Boundary data from the HDF5 Fluid files")
         except IndexError:
-            print("Could not parse the HDF5 boundary map since the atomic block info is incorrect.", file=sys.stderr)
-
-        simulation.hdf5_iterations = {}
+            print("\nCould not parse the HDF5 boundary map since the atomic block info is incorrect.", file=sys.stderr)
 
         # Get remaining directories
         directories = list(filter(
@@ -94,6 +94,7 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
         ))
 
         # Insert HDF5 iterations data into the database
+        simulation.hdf5_iterations = {}
         try:
             progress = ProgressFunction(len(directories), f"{simulation_name} | Inserting HDF5 iterations")
             for directory in directories:
@@ -143,7 +144,7 @@ def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, dire
         cell_positions = plt_positions + rbc_positions
     else:
         if len(list(simulation.hdf5_iterations.keys())) <= 1:
-            print("The Cell Id field is missing from the HDF5 cell data. As a result the cell data cannot be parsed.", file=sys.stderr)
+            print("\nThe Cell Id field is missing from the HDF5 cell data. As a result the cell data cannot be parsed.\n", file=sys.stderr)
 
         cell_positions = None
 
