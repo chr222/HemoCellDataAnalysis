@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Dict, TYPE_CHECKING
 
 import params
@@ -34,9 +35,9 @@ class Config(Entity):
     blocks: Annotated[Dict[str, Block], exclude] = None
 
 
-def create_config(connection: "Connection", simulation_id: int, data_directory: str, config_path: str = None) -> Config:
+def create_config(connection: "Connection", simulation_id: int, data_directory: Path, config_path: Path = None) -> Config:
     if config_path is None:
-        config_path = f"{data_directory}/config.xml"
+        config_path = data_directory / "config.xml"
 
     with open(config_path, 'r') as f:
         data = BeautifulSoup(f.read(), 'xml')

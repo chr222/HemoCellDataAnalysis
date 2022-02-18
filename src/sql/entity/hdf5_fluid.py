@@ -7,11 +7,11 @@ from src.sql.entity import parent, exclude, Entity
 from src.linalg import Vector3Int
 
 from dataclasses import dataclass
-from glob import glob
 import h5py
 import inspect
 from math import ceil
 import numpy as np
+from pathlib import Path
 from typing import List, Annotated, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -64,13 +64,13 @@ class HDF5Fluid(Entity):
         return self._get_value()
 
 
-def create_fluid(connection: "Connection", iteration_id: int, directory: str, config: "Config", cells: List[np.ndarray] = None, boundary: "Boundary" = None):
+def create_fluid(connection: "Connection", iteration_id: int, directory: Path, config: "Config", cells: List[np.ndarray] = None, boundary: "Boundary" = None):
     data = {k: None for (_, k) in params.HDF5_FLUID_FIELDS}
 
-    files = sorted([f for f in glob(directory + f"Fluid.*.p.*.h5")])
+    files = sorted(list(directory.glob("Fluid.*.p.*.h5")))
     for i, file_path in enumerate(files):
         # Get atomic block from file path
-        atomic_block = file_path.split(".")[-2]
+        atomic_block = file_path.name.split(".")[-2]
 
         hdf5_data = {}
         with h5py.File(file_path, 'r') as f:

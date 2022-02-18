@@ -1,7 +1,7 @@
 import numpy as np
 from bs4 import BeautifulSoup
-from glob import glob
 import os
+from pathlib import Path
 import pytest
 
 import params
@@ -12,9 +12,9 @@ from src.sql.entity.config import create_config, Config
 from src.sql.connection import Connection
 
 simulation_name = 'test_project'
-data_directory = 'test_data'
-database_path = '/tmp/test.db'
-matrix_path = '/tmp/test_matrices'
+data_directory = Path('test_data')
+database_path = Path('/tmp/test.db')
+matrix_path = Path('/tmp/test_matrices')
 
 
 @pytest.fixture
@@ -89,12 +89,12 @@ def test_insert_hdf5_iterations(connection, empty_simulation, config):
     empty_simulation.boundary = insert_boundary(connection, empty_simulation, data_directory)
 
     empty_simulation.hdf5_iterations = {}
-    directories = sorted([d for d in glob(f"{data_directory}/hdf5/*/")])
+    directories = sorted(list(data_directory.glob("hdf5/*")))
 
     for directory in directories:
         insert_hdf5_iteration(connection, empty_simulation, directory)
 
-        iteration_int = int(directory.split("/")[-2])
+        iteration_int = int(directory.name)
         assert empty_simulation.hdf5_iterations[iteration_int].id is not None
 
 
@@ -103,7 +103,7 @@ def test_insert_csv_iterations(connection, empty_simulation, config):
     empty_simulation.boundary = insert_boundary(connection, empty_simulation, data_directory)
 
     empty_simulation.csv_iterations = {}
-    iterations = sorted(list(set([d.split(".")[-2] for d in glob(f"{data_directory}/csv/*")])))
+    iterations = sorted(list(set([d.name.split(".")[-2] for d in data_directory.glob("csv/*")])))
 
     for iteration in iterations:
         insert_csv_iteration(connection, empty_simulation, data_directory, iteration)

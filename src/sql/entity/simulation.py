@@ -13,7 +13,7 @@ from src.progress import ProgressFunction, StatusHandler
 
 from dataclasses import dataclass
 from datetime import datetime
-from glob import glob
+from pathlib import Path
 from typing import Dict, Union, Annotated, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ class Simulation(Entity):
         )
 
 
-def parse_simulation(connection: "Connection", simulation_name: str, data_directory: str, config_path: str = None) -> Simulation:
+def parse_simulation(connection: "Connection", simulation_name: str, data_directory: Path, config_path: Path = None) -> Simulation:
     simulation = Simulation(simulation_name=simulation_name)
 
     (exists, simulation_id) = simulation.exists(connection)
@@ -89,8 +89,8 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
 
         # Get remaining directories
         directories = list(filter(
-            lambda d: int(d.split("/")[-2]) >= start_hdf5_iteration,
-            sorted([d for d in glob(f"{data_directory}/hdf5/*/")])
+            lambda d: int(d.name) >= start_hdf5_iteration,
+            sorted(list(data_directory.glob("hdf5/*")))
         ))
 
         # Insert HDF5 iterations data into the database
@@ -109,7 +109,7 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
     # Get remaining csv iterations
     iterations = list(filter(
         lambda i: int(i) >= start_csv_iteration,
-        sorted(list(set([d.split(".")[-2] for d in glob(f"{data_directory}/csv/*")])))
+        sorted(list(set([d.name.split(".")[-2] for d in data_directory.glob("csv/*")])))
     ))
 
     # Insert the CSV iterations data into the database
@@ -120,15 +120,15 @@ def parse_simulation(connection: "Connection", simulation_name: str, data_direct
     return simulation
 
 
-def insert_boundary(connection: "Connection", simulation: Simulation, data_directory: str) -> Boundary or None:
+def insert_boundary(connection: "Connection", simulation: Simulation, data_directory: Path) -> Boundary or None:
     # The boundary is always the same, so it is only imported by parsing the first iteration
-    directory = sorted([d for d in glob(f"{data_directory}/hdf5/*/")])[0]
+    directory = sorted(list(data_directory.glob("hdf5/*")))[0]
 
     return create_boundary(connection, directory, simulation.id, simulation.config)
 
 
-def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, directory: str):
-    iteration_int = int(directory.split("/")[-2])
+def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, directory: Path):
+    iteration_int = int(directory.name)
     iteration_object = Hdf5Iteration(
         simulation_id=simulation.id,
         iteration=iteration_int,
@@ -151,7 +151,7 @@ def insert_hdf5_iteration(connection: "Connection", simulation: Simulation, dire
     create_fluid(connection, iteration_object.id, directory, simulation.config, cell_positions, simulation.boundary)
 
 
-def insert_csv_iteration(connection: "Connection", simulation: Simulation, data_directory: str, iteration: str):
+def insert_csv_iteration(connection: "Connection", simulation: Simulation, data_directory: Path, iteration: str):
     iteration_int = int(iteration)
     iteration_object = CSVIteration.from_dict(
         simulation_id=simulation.id,
@@ -164,13 +164,13 @@ def insert_csv_iteration(connection: "Connection", simulation: Simulation, data_
     create_csv_cells(
         connection,
         iteration_object.id,
-        f"{data_directory}/csv/PLT.{iteration}.csv",
+        data_directory / f"csv/PLT.{iteration}.csv",
         "PLT"
     )
     create_csv_cells(
         connection,
         iteration_object.id,
-        f"{data_directory}/csv/RBC.{iteration}.csv",
+        data_directory / f"csv/RBC.{iteration}.csv",
         "RBC"
     )
 

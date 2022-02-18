@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 import pytest
 import os
+from pathlib import Path
 
 import params
 from progress import StatusHandler
@@ -12,9 +13,9 @@ from src.sql.entity.config import create_config, Config, load_config
 from src.sql.connection import Connection
 
 simulation_name = 'test_project'
-data_directory = 'test_data'
-database_path = '/tmp/test.db'
-matrix_path = '/tmp/test_matrices'
+data_directory = Path('test_data')
+database_path = Path('/tmp/test.db')
+matrix_path = Path('/tmp/test_matrices')
 
 
 @pytest.fixture

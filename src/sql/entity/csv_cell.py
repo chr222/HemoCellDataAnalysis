@@ -3,6 +3,7 @@ import sys
 import numpy as np
 from dataclasses import dataclass
 import inspect
+from pathlib import Path
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING, Annotated
 from math import sqrt
 
@@ -102,7 +103,7 @@ class CSVCells:
         return self._get_value()
 
 
-def create_csv_cells(connection: "Connection", iteration_id: int, file: str, prefix: str):
+def create_csv_cells(connection: "Connection", iteration_id: int, file: Path, prefix: str):
     with open(file) as f:
         columns = {column: i for i, column in enumerate(f.readline().rstrip().split(','))}
 

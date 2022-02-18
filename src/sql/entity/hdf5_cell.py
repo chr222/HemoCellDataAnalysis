@@ -1,13 +1,13 @@
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from glob import glob
 import h5py
 import inspect
 import numpy as np
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING, Annotated
 
 import params
+from pathlib import Path
 from src.sql.entity import Entity, parent
 
 if TYPE_CHECKING:
@@ -126,10 +126,10 @@ class Hdf5Cells:
         return self._get_value()
 
 
-def create_hdf5_cells(connection: "Connection", iteration_id: int, directory: str, prefix: str) -> List[np.ndarray] or None:
+def create_hdf5_cells(connection: "Connection", iteration_id: int, directory: Path, prefix: str) -> List[np.ndarray] or None:
     cells: Dict[int, Hdf5Cell] = defaultdict(lambda: Hdf5Cell(iteration_id=iteration_id, prefix=prefix))
 
-    files = sorted([f for f in glob(directory + f"{prefix}.*.p.*.h5")])
+    files = sorted(list(directory.glob(f"{prefix}.*.p.*.h5")))
     for file in files:
         with h5py.File(file, 'r') as f:
             try:

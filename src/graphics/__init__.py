@@ -1,13 +1,12 @@
 import inspect
 import matplotlib.pyplot as plt
 from matplotlib.colorbar import cm
-from os import mkdir
-from os.path import isdir
-import numpy as np
+from pathlib import Path
 from matplotlib import ticker
-import warnings
+import numpy as np
 from scipy.signal import convolve2d
 from typing import Union
+import warnings
 
 
 def nanmean(x: Union[np.ndarray, list], *args, **kwargs):
@@ -48,7 +47,7 @@ def fmin(x: Union[np.ndarray, list], *args, **kwargs):
 
 class Graphics:
     def __init__(self, output_directory: str, save_figures: bool):
-        self.output_directory = f"output/graphs/{output_directory}"
+        self.output_directory = Path(f"output/graphs/{output_directory}")
         self.save_figures = save_figures
         self.x_ticks = None
 
@@ -75,8 +74,8 @@ class Graphics:
             'hematocrit': '%'
         }
 
-        if not isdir(self.output_directory):
-            mkdir(self.output_directory)
+        if not self.output_directory.is_dir():
+            self.output_directory.mkdir()
 
     def set_x_ticks(self, x_ticks: np.ndarray):
         self.x_ticks = x_ticks
@@ -124,7 +123,7 @@ class Graphics:
                 # Figure gets name of parent function
                 figure_name = inspect.stack()[1].function
 
-            plt.savefig(f"{self.output_directory}/{figure_name}.png")
+            plt.savefig(self.output_directory / f"{figure_name}.png")
         else:
             plt.show()
 

@@ -4,6 +4,7 @@ from src.progress import time_remaining_to_string
 import params
 
 from argparse import ArgumentParser
+from pathlib import Path
 import sys
 from time import time
 
@@ -18,15 +19,18 @@ def import_simulation(simulation_name: str, data_directory: str, config_path: st
 
     try:
         # Setup connection with the database and create it if it does not exist yet
-        connection = Connection(database_name=params.DATABASE_NAME, matrix_directory=params.MATRIX_DIRECTORY)
+        connection = Connection(
+            database_name=Path(params.DATABASE_NAME),
+            matrix_directory=Path(params.MATRIX_DIRECTORY)
+        )
 
         # Parse the simulation
         start_time = time()
         parse_simulation(
             connection,
             simulation_name,
-            data_directory,
-            config_path
+            Path(data_directory),
+            Path(config_path) if config_path is not None else None
         )
         sys.stdout.write(f"\rImported simulation \"{simulation_name}\" in {time_remaining_to_string(time() - start_time)} total\n\n")
         sys.stdout.flush()

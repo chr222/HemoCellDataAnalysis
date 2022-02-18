@@ -10,8 +10,7 @@ from src.sql.entity.simulation import Simulation
 from glob import glob
 from math import ceil
 import numpy as np
-from os import mkdir
-from os.path import exists, isfile, isdir
+from pathlib import Path
 from scipy.io import savemat, loadmat
 import sqlite3
 import sys
@@ -22,7 +21,7 @@ from uuid import uuid4
 class Connection:
     connection: sqlite3.dbapi2
 
-    def __init__(self, database_name: str, matrix_directory: str):
+    def __init__(self, database_name: Path, matrix_directory: Path):
         # Setup handler for numpy arrays
         sqlite3.register_adapter(np.ndarray, self.adapt_array)
         sqlite3.register_converter("array", self.convert_array)
@@ -38,15 +37,14 @@ class Connection:
 
         # Matrices are saved in a separate directory
         self.matrix_directory = matrix_directory
-        if not isdir(matrix_directory):
+        if not matrix_directory.is_dir():
             print("\rMatrix directory does not exist yet", end="")
-            mkdir(matrix_directory)
+            matrix_directory.mkdir()
             print("\rCreated matrix directory")
 
-
     @staticmethod
-    def database_exists(database_name: str) -> bool:
-        return exists(database_name) and isfile(database_name)
+    def database_exists(database_name: Path) -> bool:
+        return database_name.exists() and database_name.is_file()
 
     def create_schema(self) -> sqlite3.dbapi2:
         cursor = self.connection.cursor()
@@ -177,7 +175,7 @@ class Connection:
         if array is None:
             return None
 
-        filename = f"{self.matrix_directory}/{uuid4()}"
+        filename = self.matrix_directory / str(uuid4())
 
         # Size of array in GB
         array_size = array.itemsize * array.size / 1e9
@@ -189,7 +187,7 @@ class Connection:
         else:
             savemat(f"{filename}.mat", {"array": array})
 
-        return filename
+        return str(filename)
 
     def convert_array(self, filename: str or None):
         """
@@ -199,7 +197,7 @@ class Connection:
         if filename is None:
             return None
 
-        files = sorted([f for f in glob(f"{filename.decode()}*.mat")])
+        files = sorted(list(glob(f"{filename.decode()}*.mat")))
 
         if len(files) == 0:
             print(f"Could not find matrix at {filename}", file=sys.stderr)

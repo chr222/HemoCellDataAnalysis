@@ -1,11 +1,12 @@
 import sys
 from dataclasses import dataclass
-from glob import glob
 import h5py
 import numpy as np
+from pathlib import Path
 from typing import Dict
 
 from src.linalg import Vector3Int
+
 
 @dataclass
 class Block:
@@ -14,14 +15,14 @@ class Block:
     offset: Vector3Int
 
 
-def get_domain_info(data_directory: str) -> (Dict[str, Block], np.array):
+def get_domain_info(data_directory: Path) -> (Dict[str, Block], np.array):
     try:
-        first_directory = list(sorted([d for d in glob(f"{data_directory}/hdf5/*/")]))[0]
+        first_directory = sorted(list(data_directory.glob("hdf5/*")))[0]
     except IndexError:
         print("No HDF5 data directory found, so no Block data could be created", file=sys.stderr)
         return None
 
-    file_paths = sorted([f for f in glob(first_directory + f"Fluid.*.p.*.h5")])
+    file_paths = sorted(list(first_directory.glob("Fluid.*.p.*.h5")))
 
     if len(file_paths) == 0:
         print("No HDF5 Fluid files found, so no Block data could be created", file=sys.stderr)
@@ -31,7 +32,7 @@ def get_domain_info(data_directory: str) -> (Dict[str, Block], np.array):
     domain = np.zeros(3, dtype=int)
     for path in file_paths:
         # Get atomic block from file path
-        atomic_block = path.split(".")[-2]
+        atomic_block = path.name.split(".")[-2]
 
         with h5py.File(path, 'r') as f:
             dx = f.attrs['dx'][0]

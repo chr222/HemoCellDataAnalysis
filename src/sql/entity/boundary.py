@@ -1,8 +1,8 @@
 import sys
 from dataclasses import dataclass
-from glob import glob
 import h5py
 import numpy as np
+from pathlib import Path
 from scipy.signal import fftconvolve
 from typing import Annotated, TYPE_CHECKING
 
@@ -54,16 +54,16 @@ def place_boundary(config, atomic_block, boundary_map, hdf5_is_boundary):
     boundary_map[start_y:end_y, start_x:end_x, start_z:end_z] = data[:, :, :, 0]
 
 
-def create_boundary(connection, directory: str, simulation_id: int, config: Config) -> Boundary or None:
+def create_boundary(connection, directory: Path, simulation_id: int, config: Config) -> Boundary or None:
     if Boundary.is_already_created(connection, simulation_id):
         return load_boundary(connection, simulation_id)
 
     boundary_map = np.zeros((config.ny, config.nx, config.nz))
 
-    files = sorted([f for f in glob(directory + f"Fluid.*.p.*.h5")])
+    files = sorted(list(directory.glob("Fluid.*.p.*.h5")))
     for file_path in files:
         # Get atomic block from file path
-        atomic_block = file_path.split(".")[-2]
+        atomic_block = file_path.name.split(".")[-2]
 
         try:
             with h5py.File(file_path, 'r') as f:

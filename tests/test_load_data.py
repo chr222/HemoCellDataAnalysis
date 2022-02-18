@@ -1,14 +1,15 @@
 import pytest
 import os
+from pathlib import Path
 
 from progress import StatusHandler
 from src.sql.entity.simulation import parse_simulation, load_simulation
 from src.sql.connection import Connection
 
 simulation_name = 'test_project'
-data_directory = 'test_data'
-database_path = '/tmp/test.db'
-matrix_path = '/tmp/test_matrices'
+data_directory = Path('test_data')
+database_path = Path('/tmp/test.db')
+matrix_path = Path('/tmp/test_matrices')
 
 
 @pytest.fixture
