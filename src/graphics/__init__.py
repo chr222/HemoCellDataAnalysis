@@ -46,8 +46,8 @@ def fmin(x: Union[np.ndarray, list], *args, **kwargs):
 
 
 class Graphics:
-    def __init__(self, output_directory: str, save_figures: bool):
-        self.output_directory = Path(f"output/graphs/{output_directory}")
+    def __init__(self, output_directory: Path, save_figures: bool):
+        self.output_directory = output_directory
         self.save_figures = save_figures
         self.x_ticks = None
 

@@ -1,5 +1,6 @@
 import numpy as np
 import params
+from pathlib import Path
 
 from src.graphics import Graphics
 from src.progress import StatusHandler
@@ -12,7 +13,7 @@ class Experiments(Graphics):
         self.status = StatusHandler()
 
         self.status.print('Connecting to database...')
-        self.connection = Connection(params.DATABASE_NAME, params.MATRIX_DIRECTORY)
+        self.connection = Connection(Path(params.DATABASE_NAME), Path(params.MATRIX_DIRECTORY))
         self.status.println('Connection successful')
 
         self.status.print('Loading simulation...')
@@ -27,7 +28,7 @@ class Experiments(Graphics):
         self.status.println('Meta data loaded')
 
         # Init Graphics
-        super().__init__(project_name, save_figures)
+        super().__init__(Path(params.EXPERIMENT_OUTPUT_DIRECTORY), save_figures)
 
     def get_x_ticks(self, x) -> np.ndarray:
         return np.around(np.array(x) * self.data.config.dt / 1e-3, decimals=1)
