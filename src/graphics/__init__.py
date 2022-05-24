@@ -1,12 +1,16 @@
 import inspect
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colorbar import cm
 from pathlib import Path
 from matplotlib import ticker
 import numpy as np
+from numpy import nan
 from scipy.signal import convolve2d
 from typing import Union
 import warnings
+import numpy.ma as ma
+import seaborn as sns
 
 
 def nanmean(x: Union[np.ndarray, list], *args, **kwargs):
@@ -63,10 +67,11 @@ class Graphics:
         }
 
         self.data_type_unit = {
-            'velocity': '$\mu m/s$',
+            'velocity': '$mm/s$', #\mu
             'velocity-y': '$\mu m/s$',
             'shear stress': '$Pa$',
             'shear rate': '$s^{-1}$',
+            'elongation rate': '$s^{-1}$',
             'height': '$\mu m$',
             'distance from center': '$\mu m$',
             'horizontal movement': '$\mu m$',
@@ -501,4 +506,48 @@ class Graphics:
             y_label=f'Moving average (n={window}) of {data_type} ({self.data_type_unit[data_type]})',
             x_label='Width ($\mu m$)',
             suffix='_over_width'
+        )
+
+    def plot_time_averaged_cross_section(self, data: np.ndarray, prefix: str or None = None, data_type: str or None = None):
+        #plt.plot(self.x_ticks[:len(data)], nanmean(data, axis=(1, 2, 3)))
+        x_ax = np.linspace(0, round(len(data)/2), len(data)+1)
+        y_ax = np.linspace(0, round(len(data[0])/2), len(data[0])+1)
+        #data = data.flatten()
+        #data = np.transpose(data)
+        Zm = ma.masked_invalid(data)
+        #print(x_ax)
+        #print(y_ax)
+        x_ax, y_ax = np.meshgrid(x_ax, y_ax)
+        #print(x_ax)
+        #print(y_ax)
+        #print(type(data))
+        #print(len(data))
+
+        #continious_color_map = plt.get_cmap('coolwarm')
+        #continious_color_map.set_bad('purple')
+
+        #bounds = np.linspace(np.nanmin(data), np.nanmax(data), continious_color_map.N)
+        #norm = mpl.colors.BoundaryNorm(bounds, continious_color_map.N)
+        #xs = [i for row in data for i, x in enumerate(row) if not np.isnan(x)]
+        #ys = [j for j, row in enumerate(data) for y in row if not np.isnan(y)]
+        #zs = [d for row in data for d in row if not np.isnan(d)]
+        #plt.tricontourf(xs, ys, zs, levels=bounds, cmap=continious_color_map, norm=norm)
+
+        #plt.tricontourf(x_ax, y_ax, data, cmap=plt.get_cmap('coolwarm'))
+        #plt.imshow(data, cmap=plt.get_cmap('coolwarm'))
+        #sns.heatmap(data)
+        plt.figure(figsize=(11, 6))
+        im = plt.pcolormesh(x_ax, y_ax, Zm.T, cmap=plt.get_cmap('coolwarm'))
+        cbar = plt.colorbar(im, cmap=plt.get_cmap('coolwarm'))  # YlGn; magma_r viridis Spectral
+        cbar.ax.set_ylabel(ylabel=f'Time averaged'
+                                  f' {data_type} ({self.data_type_unit[data_type]})', rotation=-90,
+                           va="bottom")
+        self.try_plot(
+            prefix,
+            data_type,
+            stat='time-averaged',
+            x_label='Length ($\mu m$)',
+            #y_label=f'Time average {data_type} ({self.data_type_unit[data_type]})',
+            y_label='Height ($\mu m$)',
+            suffix='cross-section'
         )

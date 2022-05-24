@@ -25,7 +25,6 @@ class Connection:
         # Setup handler for numpy arrays
         sqlite3.register_adapter(np.ndarray, self.adapt_array)
         sqlite3.register_converter("array", self.convert_array)
-
         db_exists = self.database_exists(database_name)
 
         self.connection = sqlite3.connect(database_name, timeout=3600, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -203,9 +202,9 @@ class Connection:
             print(f"Could not find matrix at {filename}", file=sys.stderr)
             return None
 
-        array: np.ndarray = loadmat(files[0]).get('array')
+        array: np.ndarray = np.float16(loadmat(files[0]).get('array'))
         for file in files[1:]:
-            array = np.concatenate((array, loadmat(file).get('array')))
+            array = np.concatenate((np.float16(array), np.float16(loadmat(file).get('array'))))
 
-        return array
+        return np.float16(array)
 

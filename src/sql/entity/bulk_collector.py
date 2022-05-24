@@ -161,6 +161,9 @@ class BulkCollector:
     def fluid_shear_rate(self, n: int = None) -> List[Tensor9Matrix]:
         return [Tensor9Matrix(row[0]) for row in self._get_hdf5_values('_shear_rate', n)]
 
+    def fluid_strain_rate(self, n: int = None) -> List[Tensor6Matrix]:
+        return [Tensor6Matrix(row[0]) for row in self._get_hdf5_values('_strain_rate', n)]
+
     def platelet_positions(self, n: int = None) -> List[CSVCellData]:
         return self._get_csv_values('PLT', 'position_x, position_y, position_z', n)
 

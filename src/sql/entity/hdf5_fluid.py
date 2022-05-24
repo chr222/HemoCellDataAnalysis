@@ -27,6 +27,7 @@ class HDF5Fluid(Entity):
     _force: np.ndarray = None
     _shear_rate: np.ndarray = None
     _shear_stress: np.ndarray = None
+    _strain_rate: np.ndarray = None
     _velocity: np.ndarray = None
     _hematocrit: np.ndarray = None
     connection: Annotated[Any, exclude] = None
@@ -53,6 +54,10 @@ class HDF5Fluid(Entity):
 
     @property
     def shear_stress(self) -> Tensor6Matrix:
+        return Tensor6Matrix(self._get_value())
+
+    @property
+    def strain_rate(self) -> Tensor6Matrix:
         return Tensor6Matrix(self._get_value())
 
     @property
@@ -185,6 +190,59 @@ class Vector3Matrix(np.ndarray):
 
         return self
 
+    def slice_boundary(self, boundary: "Boundary" or None, dim: int = 0, slice_index: int = 0) -> Vector3Matrix:
+        """
+        Slice the boundary coordinates at dimension dim and position slice_pos (in relation to dimension length)
+        """
+        #print(type(self[boundary]))
+        #print(len(self[boundary]))
+        print(type(self[0]))
+        print(len(self[0]))
+        print(type(self[0][0]))
+        print(len(self[0][0]))
+        print(type(self[0][0][0]))
+        print(len(self[0][0][0]))
+        print(type(self[boundary]))
+        print(len(self[boundary]))
+        print(len(self[boundary][0]))
+        print(len(self[boundary][0][0]))
+        if boundary is None:
+            return self
+        if dim == 0:
+            self[:][boundary.boundaries] = np.full(2, np.nan)
+        elif dim == 1:
+            #sl_index = round(len(boundary.boundary_map[0]) * slice_index)
+            self[boundary.boundary_map] = boundary.boundary_map[:][slice_index]
+        elif dim == 2:
+            self[boundary.boundary_map] = boundary.boundary_map[:][:][slice_index]
+
+        self.boundaries = np.full(2, np.nan)
+        return self
+
+    def slice_velocity(self, dim: int = 0, slice_index: int = 0) -> np.ndarray:
+        """
+        Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
+        """
+        matrix = np.copy(self)
+        print(type(matrix))
+        print(len(matrix))
+        print(type(matrix[0]))
+        print(len(matrix[0]))
+        print(type(matrix[0][0]))
+        print(len(matrix[0][0]))
+        print(type(matrix[0][0][0]))
+        print(len(matrix[0][0][0]))
+        print(type(matrix[0][0][0][0]))
+        matrix = np.float16(matrix[slice_index])
+        print(type(matrix))
+        print(len(matrix))
+        print(type(matrix[0][0]))
+        print(len(matrix[0][0]))
+        print(type(matrix[0][0][0]))
+
+        return np.sqrt(np.sum(np.power(matrix, 2), axis=2))
+
+
     @property
     def x(self) -> np.ndarray:
         return self[:, :, :, 0]
@@ -221,6 +279,15 @@ class Tensor9Matrix(np.ndarray):
         matrix[boundary.boundaries] = np.full(9, np.nan)
 
         return Tensor9Matrix(matrix)
+
+    def slice_shearrate(self, dim: int = 0, slice_index: int = 0) -> np.ndarray:
+        """
+        Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
+        """
+        matrix = np.copy(self)
+        matrix = np.float16(matrix[slice_index])
+
+        return np.sqrt(np.sum(np.power(self, 2), axis=2))
 
     @property
     def x_plane(self) -> np.ndarray:
@@ -271,6 +338,15 @@ class Tensor6Matrix(np.ndarray):
 
         return Tensor6Matrix(matrix)
 
+    def slice_elongrate(self, dim: int = 0, slice_index: int = 0) -> np.ndarray:
+        """
+        Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
+        """
+        matrix = np.copy(self)
+        matrix = np.float16(matrix[slice_index])
+
+        return np.sqrt(np.power(self[:, :, :, 0], 2) + np.power(self[:, :, :, 3], 2), axis=2)
+
     @property
     def x_plane(self) -> np.ndarray:
         return np.sqrt(np.power(self[:, :, :, 1], 2) + np.power(self[:, :, :, 2], 2))
@@ -298,3 +374,7 @@ class Tensor6Matrix(np.ndarray):
     @property
     def magnitude(self) -> np.ndarray:
         return np.sqrt(np.sum(np.power(self, 2), axis=3))
+
+    @property
+    def x_elong(self) -> np.ndarray:
+        return np.sqrt(np.power(self[:, :, :, 0], 2) + np.power(self[:, :, :, 3], 2))
