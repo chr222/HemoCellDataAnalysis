@@ -280,14 +280,14 @@ class Tensor9Matrix(np.ndarray):
 
         return Tensor9Matrix(matrix)
 
-    def slice_shearrate(self, dim: int = 0, slice_index: int = 0) -> np.ndarray:
-        """
-        Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
-        """
-        matrix = np.copy(self)
-        matrix = np.float16(matrix[slice_index])
+    #def slice_shearrate(self, dim: int = 0, slice_index: int = 0) -> np.ndarray:
+    #    """
+    #    Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
+    #    """
+        #matrix = np.copy(self)
+        #matrix = np.float64(matrix[slice_index])
 
-        return np.sqrt(np.sum(np.power(self, 2), axis=2))
+    #    return np.sqrt(np.sum(np.power(self, 2), axis=2))
 
     @property
     def x_plane(self) -> np.ndarray:
@@ -313,9 +313,17 @@ class Tensor9Matrix(np.ndarray):
     def z_face(self) -> np.ndarray:
         return np.sqrt(np.sum(np.power(self[:, :, :, 6:9], 2), axis=3))
 
+    #@property
+    #def magnitude(self) -> np.ndarray:
+    #    return np.sqrt(np.sum(np.power(self, 2), axis=3))
     @property
     def magnitude(self) -> np.ndarray:
-        return np.sqrt(np.sum(np.power(self, 2), axis=3))
+        # Ensure the array is in float128 format before operations
+        # Note: float128 might not be available on all platforms.
+        tensor_float128 = self.astype(np.longdouble)  # np.longdouble is an alias for the extended precision
+
+        # Calculate the magnitude using float128 precision
+        return np.sqrt(np.sum(np.power(tensor_float128, 2), axis=3))
 
 
 class Tensor6Matrix(np.ndarray):
@@ -343,9 +351,9 @@ class Tensor6Matrix(np.ndarray):
         Slice the velocity coordinates at dimension dim and position slice_pos (in relation to dimension length)
         """
         matrix = np.copy(self)
-        matrix = np.float16(matrix[slice_index])
+        matrix = np.float64(matrix[slice_index])
 
-        return np.sqrt(np.power(self[:, :, :, 0], 2) + np.power(self[:, :, :, 3], 2), axis=2)
+        return np.sqrt(np.power(matrix[:, :, :, 0], 2) + np.power(matrix[:, :, :, 3], 2), axis=2)
 
     @property
     def x_plane(self) -> np.ndarray:
@@ -375,6 +383,14 @@ class Tensor6Matrix(np.ndarray):
     def magnitude(self) -> np.ndarray:
         return np.sqrt(np.sum(np.power(self, 2), axis=3))
 
+    #@property
+    #def x_elong(self) -> np.ndarray:
+    #    return np.sqrt(np.power(self[:, :, :, 0], 2) + np.power(self[:, :, :, 3], 2))
     @property
     def x_elong(self) -> np.ndarray:
-        return np.sqrt(np.power(self[:, :, :, 0], 2) + np.power(self[:, :, :, 3], 2))
+        # Convert slices of the array to long double before the operation
+        slice1 = self[:, :, :, 0].astype(np.longdouble)
+        slice2 = self[:, :, :, 3].astype(np.longdouble)
+
+        # Perform the power and addition operations with long double precision
+        return np.sqrt(np.power(slice1, 2) + np.power(slice2, 2))

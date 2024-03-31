@@ -1,6 +1,7 @@
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
+from dataclasses import dataclass, field
 import h5py
 import inspect
 import numpy as np
@@ -18,16 +19,16 @@ if TYPE_CHECKING:
 class Hdf5Cell(Entity):
     prefix: str
     iteration_id: Annotated[int, parent('hdf5_iteration', 'id')]
-    area_force: np.ndarray = np.empty((0, 3))
-    bending_force: np.ndarray = np.empty((0, 3))
-    inner_link_force: np.ndarray = np.empty((0, 3))
-    link_force: np.ndarray = np.empty((0, 3))
-    position: np.ndarray = np.empty((0, 3))
-    repulsion_force: np.ndarray = np.empty((0, 3))
-    total_force: np.ndarray = np.empty((0, 3))
-    velocity: np.ndarray = np.empty((0, 3))
-    viscous_force: np.ndarray = np.empty((0, 3))
-    volume_force: np.ndarray = np.empty((0, 3))
+    area_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    bending_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    inner_link_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    link_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    position: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    repulsion_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    total_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    velocity: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    viscous_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
+    volume_force: np.ndarray = field(default_factory=lambda: np.empty((0, 3))) #np.empty((0, 3))
 
     def __getitem__(self, item):
         return getattr(self, item)

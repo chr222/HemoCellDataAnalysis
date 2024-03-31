@@ -128,7 +128,9 @@ class Graphics:
                 # Figure gets name of parent function
                 figure_name = inspect.stack()[1].function
 
-            plt.savefig(self.output_directory / f"{figure_name}.png")
+            #plt.savefig(self.output_directory / f"{figure_name}.png")
+            plt.savefig(self.output_directory / f"{figure_name}.png", format='png', dpi=1200)
+            plt.savefig(self.output_directory / f"{figure_name}.svg", format='svg', dpi=1200)
         else:
             plt.show()
 
@@ -508,20 +510,23 @@ class Graphics:
             suffix='_over_width'
         )
 
-    def plot_time_averaged_cross_section(self, data: np.ndarray, prefix: str or None = None, data_type: str or None = None, v_max: int or None=None):
-
-        x_ax = np.linspace(0, round(len(data)/2), len(data)+1)
-        y_ax = np.linspace(0, round(len(data[0])/2), len(data[0])+1)
+    def plot_time_averaged_cross_section(self, data: np.ndarray, prefix: str or None = None, data_type: str or None = None, v_max: int or None=None): # , x_limit: int or None=None, y_limit: int or None=None
 
         Zm = ma.masked_invalid(data)
-        x_ax, y_ax = np.meshgrid(x_ax, y_ax)
-
-        plt.figure(figsize=(11, 6))
+        x_ax = np.linspace(0, round(len(Zm) / 2), len(Zm))
+        y_ax = np.linspace(0, round(len(Zm[0]) / 2), len(Zm[0]))
+        #x_ax, y_ax = np.meshgrid(x_ax, y_ax)
+        print('Max: ' + str(np.nanmax(Zm)))
+        #print('Mean: ' + str(np.nanmean(Zm)))
+        plt.figure()  # figsize=(11, 6))
         if 'v_max' in locals():
-            im = plt.pcolormesh(x_ax, y_ax, Zm.T, cmap=plt.get_cmap('jet'), vmax=v_max)
+            im = plt.pcolormesh(x_ax, y_ax, Zm.T, cmap=plt.get_cmap('viridis'), vmax=v_max)
         else:
-            im = plt.pcolormesh(x_ax, y_ax, Zm.T, cmap=plt.get_cmap('jet'))
-        cbar = plt.colorbar(im, cmap=plt.get_cmap('jet'))  # YlGn; magma_r viridis Spectral coolwarm
+            im = plt.pcolormesh(x_ax, y_ax, Zm.T, cmap=plt.get_cmap('viridis'))
+        plt.gca().set_aspect('equal')
+        plt.xlim(0, 250)
+        plt.ylim(0, 137.5)
+        cbar = plt.colorbar(im, cmap=plt.get_cmap('viridis'))  # YlGn; magma_r viridis Spectral coolwarm
         cbar.ax.set_ylabel(ylabel=f'Time averaged'
                                   f' {data_type} ({self.data_type_unit[data_type]})', rotation=-90,
                            va="bottom")
@@ -533,5 +538,5 @@ class Graphics:
             x_label='Length ($\mu m$)',
             #y_label=f'Time average {data_type} ({self.data_type_unit[data_type]})',
             y_label='Height ($\mu m$)',
-            suffix='cross-section'
+            suffix='cross-section-fixed'
         )

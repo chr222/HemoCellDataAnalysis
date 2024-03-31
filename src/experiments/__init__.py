@@ -8,7 +8,7 @@ from src.graphics import Graphics
 from src.progress import StatusHandler
 from src.sql.connection import Connection
 from src.sql.entity.simulation import load_simulation
-
+import numpy.ma as ma
 
 class Experiments(Graphics):
     def __init__(self, project_name: str, save_figures: bool):
@@ -82,7 +82,7 @@ class Experiments(Graphics):
 
         self.plot_time_averaged_cross_section(velocity, 'fluid', 'velocity', v_max=scale_max)  # TODO: include averaged from until
 
-    def fluid_shearrate_time_averaged_crossx(self, start_it: int = 0, end_it: int = -1, xslice: float = 0.5, scale_max: int or None=None):
+    def fluid_shearrate_time_averaged_crossx(self, start_it: int = 0, end_it: int = -1, xslice: float = 0.5, peak: bool = False, scale_max: int or None=None):
         self.set_x_ticks(self.x_ticks_hdf5)
         self.status.print("Loading shear-rate data")
         slice_in = round(len(self.data.boundary.boundary_map) * xslice)
@@ -96,6 +96,12 @@ class Experiments(Graphics):
         shear_rate = np.array([np.float32(data).magnitude for data in sr_data])
         shear_rate = np.mean(shear_rate, axis=0)
         shear_rate = np.mean(shear_rate, axis=0)
+
+        #if peak:
+        #    print(np.amax(shear_rate, axis=1))
+        #    print(np.amax(shear_rate, axis=0))
+        #    print(np.amax(shear_rate[0]))
+            #print(np.amax(shear_rate, axis=2))
 
         self.plot_time_averaged_cross_section(shear_rate, 'fluid', 'shear rate', v_max=scale_max)
 
@@ -117,9 +123,10 @@ class Experiments(Graphics):
         elong_rate = np.mean(elong_rate, axis=0)  # remove x-coordinates (same bc slice) TODO replace
 
         #if peak:
-        #    print(np.amax(elong_rate, axis=1))
-        #    print(np.amax(elong_rate, axis=0))
-        #    print(np.amax(elong_rate, axis=2))
+            #print(np.amax(elong_rate))
+            #print(np.amax(elong_rate, axis=1))
+            #print(np.amax(elong_rate, axis=0))
+            #print(np.amax(elong_rate, axis=2))
 
         self.plot_time_averaged_cross_section(elong_rate, 'fluid', 'elongation rate', v_max=scale_max)
 
@@ -188,6 +195,8 @@ class Experiments(Graphics):
         plt_counter = np.array(plt_counter)
         ratio = np.divide(rbc_counter, plt_counter)
         print("RBC:platelet ration at "+section_name+" = "+str(np.mean(ratio))+" +- "+str(np.std(ratio)))
+        print("RBC amount at " + section_name + " = " + str(np.mean(rbc_counter)) + " +- " + str(np.std(rbc_counter)))
+        print("PLT amount at " + section_name + " = " + str(np.mean(plt_counter)) + " +- " + str(np.std(plt_counter)))
 
 
     def puncture_cell_conc_time_averaged(self, start_it: int = 0, end_it: int = -1, z_from: float = 100, z_to: float = 107.5, x_center: float = 75, pun_diam: float = 50, time_window: float = 1):
@@ -290,4 +299,179 @@ class Experiments(Graphics):
             np.std(np.array(cfl_prox_quarter))))
         print("CFL distal quarter: " + str(np.mean(np.array(cfl_dist_quarter))) + " +- " + str(
             np.std(np.array(cfl_dist_quarter))))
+
+#################################################################################################################
+    def fluid_velocity_time_averaged_side(self, start_it: int = 0, end_it: int = -1, scale_max: int or None=None, lab:str or str=''): # , x_limit: int or None=None, y_limit: int or None=None
+        self.set_x_ticks(self.x_ticks_hdf5)
+        self.status.print("Loading velocity data")
+
+        #slice_in = round(len(self.data.boundary.boundary_map)*0.5)
+        # Load all the velocity data from start_it to end_it
+        velocity_data = list(
+            map(lambda x: x.exclude_borders(self.data.boundary), self.data.all.fluid_velocities()[start_it:end_it]))
+        # Preparing a list to store averaged x-z plane velocity data for each iteration
+        averaged_velocity_iterations = []
+        #print(velocity_data.shape)
+        #print(type(velocity_data))
+
+
+        for i in range(len(velocity_data)):
+            # Average the velocities along the y-axis (assuming x-z plane averaging)
+            iteration_average = np.mean(velocity_data[i].magnitude, axis=0)  # This averages along the x-direction
+            averaged_velocity_iterations.append(iteration_average)
+
+        self.status.println("Loaded and processed velocity data")
+        #np.savetxt(lab + "iteration_average.csv", iteration_average, delimiter=",")
+        #print('gogogo')
+
+        # Convert to NumPy array for easier manipulation
+        averaged_velocity_iterations = np.array(averaged_velocity_iterations)
+
+        # Now, time-average the iteration averages
+        velocity_time_averaged = np.mean(averaged_velocity_iterations, axis=0)  # This averages across all iterations
+        # Converting to mm/s if needed
+        velocity_time_averaged *= 1e3
+
+        np.savetxt(lab+"velocity_time_averaged.csv", velocity_time_averaged, delimiter=",")
+
+        # Plot the time-averaged velocity field
+        self.plot_time_averaged_cross_section(velocity_time_averaged, 'fluid', 'velocity', v_max=scale_max)
+
+    def fluid_stream_time_averaged_side(self, start_it: int = 0, end_it: int = -1, scale_max: int or None=None, lab:str or str=''): # , x_limit: int or None=None, y_limit: int or None=None
+        self.set_x_ticks(self.x_ticks_hdf5)
+        self.status.print("Loading velocity data")
+
+        #slice_in = round(len(self.data.boundary.boundary_map)*0.5)
+        # Load all the velocity data from start_it to end_it
+
+        velocity_data = list(
+            map(lambda x: x.exclude_borders(self.data.boundary), self.data.all.fluid_velocities()[start_it:end_it]))
+        # Preparing a list to store averaged x-z plane velocity data for each iteration
+        averaged_x_velocity_iterations = []
+        averaged_z_velocity_iterations = []
+
+        for i in range(len(velocity_data)):
+            # Average the velocities along the y-axis (assuming x-z plane averaging)
+            iteration_average_x = np.mean(velocity_data[i].x, axis=0)  # This averages along the x-direction
+            iteration_average_z = np.mean(velocity_data[i].z, axis=0)  # This averages along the x-direction
+            averaged_x_velocity_iterations.append(iteration_average_x)
+            averaged_z_velocity_iterations.append(iteration_average_z)
+
+        self.status.println("Loaded and processed velocity data")
+
+        # Convert to NumPy array for easier manipulation
+        averaged_x_velocity_iterations = np.array(averaged_x_velocity_iterations)
+        averaged_z_velocity_iterations = np.array(averaged_z_velocity_iterations)
+
+        # Now, time-average the iteration averages
+        x_velocity_time_averaged = np.mean(averaged_x_velocity_iterations, axis=0)  # This averages across all iterations
+        z_velocity_time_averaged = np.mean(averaged_z_velocity_iterations, axis=0)
+        # Converting to mm/s if needed
+        # velocity_time_averaged *= 1e3
+
+        np.savetxt(lab+"_x_velocity_time_averaged.csv", x_velocity_time_averaged, delimiter=",")
+        np.savetxt(lab+"_z_velocity_time_averaged.csv", z_velocity_time_averaged, delimiter=",")
+
+        # Plot the time-averaged velocity field
+        #self.plot_time_averaged_cross_section(x_velocity_time_averaged, z_velocity_time_averaged, 'fluid', 'streamlines', v_max=scale_max)
+    def fluid_shearrate_time_averaged_side(self, start_it: int = 0, end_it: int = -1, scale_max: int or None=None, lab:str or str=''):
+        self.set_x_ticks(self.x_ticks_hdf5)
+        self.status.print("Loading shear-rate data")
+
+        sr_data = list(map(lambda x: x.exclude_borders(self.data.boundary), self.data.all.fluid_shear_rate()[start_it:end_it]))
+        # Preparing a list to store averaged x-z plane shear rate data for each iteration
+        averaged_sr_iterations = []
+
+        for i in range(len(sr_data)):
+            # Average the velocities along the y-axis (assuming x-z plane averaging)
+            iteration_average = np.mean(sr_data[i].magnitude, axis=0)  # This averages along the x-direction
+            averaged_sr_iterations.append(iteration_average)
+
+        self.status.println("Loaded and processed shear-rate data")
+
+        # Convert to NumPy array for easier manipulation
+        averaged_sr_iterations = np.array(averaged_sr_iterations)
+
+        # Now, time-average the iteration averages
+        sr_time_averaged = np.mean(averaged_sr_iterations, axis=0)  # This averages across all iterations
+
+        np.savetxt(lab+"_sr_time_averaged.csv", sr_time_averaged, delimiter=",")
+
+        self.plot_time_averaged_cross_section(sr_time_averaged, 'fluid', 'shear rate', v_max=scale_max)
+
+        '''
+
+    def fluid_shearrate_time_averaged_side(self, start_it: int = 0, end_it: int = -1,
+                                           threshold: float = 1000000000.00, scale_max: int or None = None, lab: str or str = ''):
+        self.set_x_ticks(self.x_ticks_hdf5)
+        self.status.print("Loading shear-rate data")
+
+        # Fetch all the shear rate data for the iterations
+        # = list(map(lambda x: x.exclude_borders(self.data.boundary),
+        #                   self.data.all.fluid_shear_rate()[start_it:end_it]))
+        sr_data = self.data.all.fluid_shear_rate()[start_it:end_it]
+
+        # List to store x-z plane averaged data for each timestep
+        averaged_xz_planes = []
+
+        for iteration_data in sr_data:
+            # List to store y-slices that are entirely below the threshold
+            valid_y_slices = []
+
+            # Iterate over the y-axis (axis 0)
+            for y_slice in iteration_data.magnitude:
+                # If all values in the y-slice are below the threshold, keep the y-slice
+                if np.all(y_slice < threshold):
+                    valid_y_slices.append(y_slice)
+            print('valid_y_slices: ' + str(len(valid_y_slices)))
+            # If there are valid y-slices, average them to get an x-z plane
+            if valid_y_slices:
+                # Convert the list of valid y-slices to a 3D array and average along the y-axis
+                xz_plane = np.mean(np.array(valid_y_slices), axis=0)
+                averaged_xz_planes.append(xz_plane)
+
+        self.status.println("Loaded and processed shear-rate data")
+
+        # Now, time-average the x-z planes if there are any
+        if averaged_xz_planes:
+            # Convert the list of x-z planes to a 3D array and average along the first axis (time)
+            sr_time_averaged = np.mean(np.array(averaged_xz_planes), axis=0)
+        else:
+            # Handle the case where there are no valid x-z planes
+            sr_time_averaged = np.array([])  # Empty array to denote no data
+
+        # Save the result
+        np.savetxt(lab + "_sr_time_averaged.csv", sr_time_averaged, delimiter=",")
+
+        # Only call the plotting function if there is valid data
+        if sr_time_averaged.size > 0:
+            self.plot_time_averaged_cross_section(sr_time_averaged, 'fluid', 'shear rate', v_max=scale_max)
+        else:
+            self.status.println("No valid data to plot.")'''
+    def fluid_elongrate_time_averaged_side(self, start_it: int = 0, end_it: int = -1, scale_max: int or None=None, lab:str or str=''):
+        self.set_x_ticks(self.x_ticks_hdf5)
+        self.status.print("Loading elongation-rate data")
+
+        elong_data = list(
+            map(lambda x: x.exclude_borders(self.data.boundary), self.data.all.fluid_strain_rate()[start_it:end_it]))
+
+        # Preparing a list to store averaged x-z plane velocity data for each iteration
+        averaged_elong_iterations = []
+
+        for i in range(len(elong_data)):
+            # Average the velocities along the y-axis (assuming x-z plane averaging)
+            iteration_average = np.mean(elong_data[i].x_elong, axis=0)  # This averages along the x-direction
+            averaged_elong_iterations.append(iteration_average)
+
+        self.status.println("Loaded and processed elongation-rate data")
+
+        # Convert to NumPy array for easier manipulation
+        averaged_elong_iterations = np.array(averaged_elong_iterations)
+
+        # Now, time-average the iteration averages
+        elong_time_averaged = np.mean(averaged_elong_iterations, axis=0)  # This averages across all iterations
+
+        np.savetxt(lab+"_elong_time_averaged.csv", elong_time_averaged, delimiter=",")
+
+        self.plot_time_averaged_cross_section(elong_time_averaged, 'fluid', 'elongation rate', v_max=scale_max)
 
